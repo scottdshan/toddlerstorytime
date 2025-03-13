@@ -49,7 +49,12 @@ AWS_SECRET_ACCESS_KEY=your_aws_secret_key
 AWS_REGION=us-east-1
 ```
 
-5. Run the application:
+5. Initialize the database:
+```bash
+python -m app.db.init_db
+```
+
+6. Run the application:
 ```bash
 uvicorn app.main:app --reload
 ```

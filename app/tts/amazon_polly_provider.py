@@ -6,7 +6,7 @@ from botocore.exceptions import ClientError
 from typing import Optional, List, Dict, Any
 
 from app.tts.base import TTSProvider
-from app.config import AUDIO_DIR
+from app.config import AUDIO_DIR, NETWORK_SHARE_PATH, NETWORK_SHARE_URL
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,17 @@ class AmazonPollyProvider(TTSProvider):
         
         # Use the absolute path from config
         self.output_dir = AUDIO_DIR
+        self.network_share_path = NETWORK_SHARE_PATH
+        
+        # Create directories if they don't exist
         os.makedirs(self.output_dir, exist_ok=True)
+        try:
+            os.makedirs(self.network_share_path, exist_ok=True)
+            self.network_share_available = True
+            logger.info(f"Network share path is available at {self.network_share_path}")
+        except Exception as e:
+            self.network_share_available = False
+            logger.warning(f"Network share path is not available: {e}")
         
         logger.info(f"Initialized Amazon Polly Provider with default voice {self.voice_id}")
 
@@ -85,10 +95,14 @@ class AmazonPollyProvider(TTSProvider):
             
             # Create a unique filename
             filename = f"polly_{uuid.uuid4()}.mp3"
-            # Use os.path.join for the file system path (with backslashes on Windows)
-            file_path = os.path.join(self.output_dir, filename)
-            # Use forward slashes for the URL path - standardize to always start with /static/
-            relative_path = f"/static/audio/{filename}"
+            # Local file path
+            local_file_path = os.path.join(self.output_dir, filename)
+            # Network file path
+            network_file_path = os.path.join(self.network_share_path, filename)
+            # Local URL path (for web app)
+            local_url_path = f"/static/audio/{filename}"
+            # Network URL (for Home Assistant)
+            network_url_path = f"{NETWORK_SHARE_URL}/{filename}"
             
             logger.info(f"Using Amazon Polly voice: {selected_voice_id}")
             
@@ -100,13 +114,31 @@ class AmazonPollyProvider(TTSProvider):
                 Engine='neural'  # Use neural engine for better quality
             )
             
-            # Save the audio file
+            # Save the audio file to both locations
             if "AudioStream" in response:
-                with open(file_path, 'wb') as file:
-                    file.write(response['AudioStream'].read())
-                logger.info(f"Generated audio file at {file_path}")
-                logger.info(f"Audio URL path: {relative_path}")
-                return relative_path
+                audio_data = response['AudioStream'].read()
+                
+                # Save to local path
+                with open(local_file_path, 'wb') as file:
+                    file.write(audio_data)
+                logger.info(f"Generated audio file at {local_file_path}")
+                
+                # Save to network share if available
+                if self.network_share_available:
+                    try:
+                        with open(network_file_path, 'wb') as file:
+                            file.write(audio_data)
+                        logger.info(f"Copied audio file to network share at {network_file_path}")
+                        
+                        # Return network URL for Home Assistant
+                        # The format in the database will be audio/filename.mp3, keep consistent
+                        return local_url_path.replace('/static/', '')
+                    except Exception as e:
+                        logger.error(f"Failed to save to network share: {e}")
+                        # Continue with local path
+                
+                logger.info(f"Audio URL path: {local_url_path}")
+                return local_url_path.replace('/static/', '')
             else:
                 logger.error("No AudioStream found in response")
                 return None

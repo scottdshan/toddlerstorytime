@@ -7,7 +7,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 import logging
 
-from app.endpoints import stories, audio
+from app.endpoints import stories, audio, integrations
 from app.db.database import Base, engine
 from app.config import TEMPLATES_DIR, STATIC_DIR, AUDIO_DIR, APP_NAME, DEBUG, BASE_DIR
 
@@ -58,6 +58,7 @@ app.add_middleware(
 # Include API routers
 app.include_router(stories.router, prefix="/api/stories", tags=["stories"])
 app.include_router(audio.router, prefix="/api/audio", tags=["audio"])
+app.include_router(integrations.router, prefix="/api/integrations", tags=["integrations"])
 
 @app.get("/")
 async def index(request: Request):

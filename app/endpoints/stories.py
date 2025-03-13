@@ -132,19 +132,48 @@ async def generate_story(story_request: StoryGenRequest, db: Session = Depends(g
         )
 
 @router.get("/history", response_model=List[StoryHistoryResponse])
-async def get_story_history(limit: int = 10):
+async def get_story_history(limit: int = 10, db: Session = Depends(get_db)):
     """
     Get the history of generated stories
     """
     try:
-        stories = story_generator.get_recent_stories(limit)
-        return stories
+        # Use the CRUD function instead of story_generator.get_recent_stories
+        stories = crud.get_recent_stories(db, limit)
+        
+        # Format the response to match the expected schema
+        formatted_stories = []
+        for story in stories:
+            formatted_story = {
+                "id": story.id,
+                "universe": story.universe,
+                "setting": story.setting,
+                "theme": story.theme,
+                "story_length": story.story_length,
+                "characters": [
+                    {"character_name": char.character_name, "id": char.id, "story_id": char.story_id}
+                    for char in story.characters
+                ],
+                "prompt": story.prompt,
+                "story_text": story.story_text,
+                "audio_path": story.audio_path,
+                "created_at": story.created_at
+            }
+            formatted_stories.append(formatted_story)
+            
+        return formatted_stories
     except Exception as e:
         logger.error(f"Error retrieving story history: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve story history: {str(e)}"
         )
+
+@router.get("/recent", response_model=List[StoryHistoryResponse])
+async def get_recent_stories(limit: int = 10, db: Session = Depends(get_db)):
+    """
+    Get recent stories (alias for history endpoint)
+    """
+    return await get_story_history(limit, db)
 
 @router.get("/{story_id}", response_model=StoryResponse)
 async def get_story(story_id: str):

@@ -55,50 +55,64 @@ def get_recent_stories(db: Session, limit: int = 10) -> List[models.StoryHistory
 
 def get_story_elements_frequency(db: Session, days: int = 14) -> Dict[str, Dict[str, int]]:
     """
-    Get frequency of story elements used in recent stories to aid randomization
+    Calculate frequency of story elements to help with randomization
+    Returns a dictionary of frequency counts for universes, settings, themes, and characters
     """
     # Calculate date threshold
     threshold_date = datetime.utcnow() - timedelta(days=days)
     
-    # Get recent stories
-    recent_stories = db.query(models.StoryHistory).filter(
-        models.StoryHistory.created_at >= threshold_date
-    ).all()
-    
-    # Initialize frequency counters
-    frequencies = {
-        "universes": {},
-        "settings": {},
-        "themes": {}
-    }
-    
-    # Count frequencies
-    for story in recent_stories:
-        # Count universe frequency
-        if story.universe is not None:
-            frequencies["universes"][story.universe] = frequencies["universes"].get(story.universe, 0) + 1
+    try:
+        # Get recent stories
+        recent_stories = db.query(models.StoryHistory).filter(
+            models.StoryHistory.created_at >= threshold_date
+        ).all()
         
-        # Count setting frequency
-        if story.setting is not None:
-            frequencies["settings"][story.setting] = frequencies["settings"].get(story.setting, 0) + 1
+        # Initialize frequency counters
+        frequencies = {
+            "universes": {},
+            "settings": {},
+            "themes": {},
+            "characters": {}
+        }
         
-        # Count theme frequency
-        if story.theme is not None:
-            frequencies["themes"][story.theme] = frequencies["themes"].get(story.theme, 0) + 1
-    
-    # Get character frequencies
-    character_counts = {}
-    story_characters = db.query(models.StoryCharacter).join(
-        models.StoryHistory
-    ).filter(
-        models.StoryHistory.created_at >= threshold_date
-    ).all()
-    
-    for char in story_characters:
-        character_counts[char.character_name] = character_counts.get(char.character_name, 0) + 1
-    
-    frequencies["characters"] = character_counts
-    
+        # Count frequencies
+        for story in recent_stories:
+            # Universe frequency
+            if story.universe:
+                if story.universe in frequencies["universes"]:
+                    frequencies["universes"][story.universe] += 1
+                else:
+                    frequencies["universes"][story.universe] = 1
+                    
+            # Setting frequency
+            if story.setting:
+                if story.setting in frequencies["settings"]:
+                    frequencies["settings"][story.setting] += 1
+                else:
+                    frequencies["settings"][story.setting] = 1
+                    
+            # Theme frequency
+            if story.theme:
+                if story.theme in frequencies["themes"]:
+                    frequencies["themes"][story.theme] += 1
+                else:
+                    frequencies["themes"][story.theme] = 1
+                    
+            # Character frequency
+            for character in story.characters:
+                if character.character_name in frequencies["characters"]:
+                    frequencies["characters"][character.character_name] += 1
+                else:
+                    frequencies["characters"][character.character_name] = 1
+    except Exception as e:
+        # Handle any database errors or if the table doesn't exist yet
+        frequencies = {
+            "universes": {},
+            "settings": {},
+            "themes": {},
+            "characters": {}
+        }
+        
     return frequencies
 
 def save_preferences(db: Session, preferences: Dict[str, Any]) -> models.StoryPreferences:

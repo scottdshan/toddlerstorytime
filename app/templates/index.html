@@ -1,77 +1,189 @@
 {% extends "base.html" %}
 
-{% block title %}Toddler Storyteller - Home{% endblock %}
+{% block title %}
+    {% if active_page == "history" %}
+        Toddler Storyteller - Story History
+    {% elif active_page == "preferences" %}
+        Toddler Storyteller - Preferences
+    {% else %}
+        Toddler Storyteller - Home
+    {% endif %}
+{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-10">
-        <div class="text-center mb-5">
-            <h1 class="display-4">Welcome to Toddler Storyteller</h1>
-            <p class="lead">Create magical bedtime stories for your little one</p>
+    {% if active_page == "history" %}
+        <!-- Story History Page Content -->
+        <div class="row justify-content-center">
+            <div class="col-md-10">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h1 class="h2">Story History</h1>
+                    <div>
+                        <button class="btn btn-sm btn-outline-secondary refresh-stories">
+                            <i class="fas fa-sync-alt me-1"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="ha-integration-status" class="mb-4" style="display: none;">
+                    <div class="alert alert-info">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="fas fa-home me-2"></i> Home Assistant Integration
+                                <span id="ha-status-badge" class="badge bg-secondary ms-2">Checking...</span>
+                            </div>
+                            <button id="ha-setup-btn" class="btn btn-sm btn-primary" style="display: none;">
+                                Configure
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="story-list" class="row">
+                    <div class="col-12 text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-3">Loading stories...</p>
+                    </div>
+                </div>
+                
+                <!-- Story Details Modal -->
+                <div class="modal fade" id="storyModal" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Story Details</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div id="modal-story-content">
+                                    <div class="text-center py-5">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                <button type="button" id="play-on-ha-btn" class="btn btn-primary">
+                                    <i class="fas fa-broadcast-tower me-1"></i> Play on Home Assistant
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Home Assistant Player Selection Modal -->
+                <div class="modal fade" id="haPlayerModal" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Select Media Player</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div id="ha-player-list">
+                                    <div class="text-center py-3">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                        <p class="mt-2">Loading media players...</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-        
-        <div class="row">
-            <div class="col-md-4 mb-4">
-                <div class="card h-100">
-                    <div class="card-body text-center">
-                        <i class="fas fa-magic fa-3x text-primary mb-3"></i>
-                        <h3>Create Story</h3>
-                        <p>Generate a custom bedtime story with your child's favorite characters and themes.</p>
-                        <a href="/story-builder" class="btn btn-primary mt-3">Create Now</a>
-                    </div>
+    {% elif active_page == "preferences" %}
+        <!-- Preferences Page Content -->
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <h1 class="mb-4">Story Preferences</h1>
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i> Preferences page content will go here.
                 </div>
-            </div>
-            
-            <div class="col-md-4 mb-4">
-                <div class="card h-100">
-                    <div class="card-body text-center">
-                        <i class="fas fa-history fa-3x text-secondary mb-3"></i>
-                        <h3>Story History</h3>
-                        <p>Listen to previously generated stories and revisit your child's favorites.</p>
-                        <a href="/history" class="btn btn-secondary mt-3">View History</a>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-4 mb-4">
-                <div class="card h-100">
-                    <div class="card-body text-center">
-                        <i class="fas fa-cog fa-3x text-dark mb-3"></i>
-                        <h3>Preferences</h3>
-                        <p>Set up your child's favorite story elements and voice preferences.</p>
-                        <a href="/preferences" class="btn btn-dark mt-3">Set Preferences</a>
-                    </div>
-                </div>
+                <!-- Preferences form would go here -->
             </div>
         </div>
-        
-        <div class="card mt-5">
-            <div class="card-body">
+    {% else %}
+        <!-- Home Page Content -->
+        <div class="row justify-content-center">
+            <div class="col-md-10">
+                <div class="text-center mb-5">
+                    <h1 class="display-4">Welcome to Toddler Storyteller</h1>
+                    <p class="lead">Create magical bedtime stories for your little one</p>
+                </div>
+                
                 <div class="row">
-                    <div class="col-md-6">
-                        <h3>About Toddler Storyteller</h3>
-                        <p>This application uses advanced AI to create custom bedtime stories for your toddler. Each story is:</p>
-                        <ul>
-                            <li>Personalized to your child's interests</li>
-                            <li>Age-appropriate for toddlers</li>
-                            <li>Available as text and audio</li>
-                            <li>Perfect for bedtime routines</li>
-                        </ul>
-                        <p>Stories can feature characters from popular children's shows or be set in completely original fantasy worlds.</p>
+                    <div class="col-md-4 mb-4">
+                        <div class="card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-magic fa-3x text-primary mb-3"></i>
+                                <h3>Create Story</h3>
+                                <p>Generate a custom bedtime story with your child's favorite characters and themes.</p>
+                                <a href="/story-builder" class="btn btn-primary mt-3">Create Now</a>
+                            </div>
+                        </div>
                     </div>
-                    <div class="col-md-6">
-                        <h3>How It Works</h3>
-                        <div class="card bg-light">
-                            <div class="card-body">
-                                <ol>
-                                    <li>Select your child's favorite characters, settings, and themes</li>
-                                    <li>Generate a unique story using AI</li>
-                                    <li>Listen to the story with high-quality voice narration</li>
-                                    <li>Save the story to play again later</li>
-                                </ol>
-                                <p class="mt-3">For a fully automated experience, you can set up preferences and use the randomize feature for endless story variations.</p>
-                                <div class="text-center mt-3">
-                                    <a href="/story-builder" class="btn btn-primary">Try It Now</a>
+                    
+                    <div class="col-md-4 mb-4">
+                        <div class="card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-history fa-3x text-secondary mb-3"></i>
+                                <h3>Story History</h3>
+                                <p>Listen to previously generated stories and revisit your child's favorites.</p>
+                                <a href="/history" class="btn btn-secondary mt-3">View History</a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4 mb-4">
+                        <div class="card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-cog fa-3x text-dark mb-3"></i>
+                                <h3>Preferences</h3>
+                                <p>Set up your child's favorite story elements and voice preferences.</p>
+                                <a href="/preferences" class="btn btn-dark mt-3">Set Preferences</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mt-5">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h3>About Toddler Storyteller</h3>
+                                <p>This application uses advanced AI to create custom bedtime stories for your toddler. Each story is:</p>
+                                <ul>
+                                    <li>Personalized to your child's interests</li>
+                                    <li>Age-appropriate for toddlers</li>
+                                    <li>Available as text and audio</li>
+                                    <li>Perfect for bedtime routines</li>
+                                </ul>
+                                <p>Stories can feature characters from popular children's shows or be set in completely original fantasy worlds.</p>
+                            </div>
+                            <div class="col-md-6">
+                                <h3>How It Works</h3>
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <ol>
+                                            <li>Select your child's favorite characters, settings, and themes</li>
+                                            <li>Generate a unique story using AI</li>
+                                            <li>Listen to the story with high-quality voice narration</li>
+                                            <li>Save the story to play again later</li>
+                                        </ol>
+                                        <p class="mt-3">For a fully automated experience, you can set up preferences and use the randomize feature for endless story variations.</p>
+                                        <div class="text-center mt-3">
+                                            <a href="/story-builder" class="btn btn-primary">Try It Now</a>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -79,6 +191,333 @@
                 </div>
             </div>
         </div>
-    </div>
-</div>
+    {% endif %}
+{% endblock %}
+
+{% block scripts %}
+    {% if active_page == "history" %}
+    <script>
+        // Global variables
+        let currentStoryId = null;
+        
+        // Document ready handler
+        $(document).ready(function() {
+            // Load stories when page loads
+            loadStories();
+            
+            // Check Home Assistant status
+            checkHomeAssistantStatus();
+            
+            // Set up event handlers
+            $('.refresh-stories').click(loadStories);
+            $('#play-on-ha-btn').click(openHaPlayerSelector);
+            
+            // Update currentStoryId when modal is shown
+            $('#storyModal').on('show.bs.modal', function (event) {
+                const button = $(event.relatedTarget);
+                currentStoryId = button.data('story-id');
+                loadStoryDetails(currentStoryId);
+            });
+        });
+        
+        // Load story history
+        function loadStories() {
+            $('#story-list').html(`
+                <div class="col-12 text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-3">Loading stories...</p>
+                </div>
+            `);
+            
+            // Fetch stories from API
+            fetch('/api/stories/recent')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.length === 0) {
+                        $('#story-list').html(`
+                            <div class="col-12 text-center py-5">
+                                <div class="alert alert-light">
+                                    <i class="fas fa-info-circle me-2"></i> No stories found.
+                                    <div class="mt-3">
+                                        <a href="/story-builder" class="btn btn-primary">Create Your First Story</a>
+                                    </div>
+                                </div>
+                            </div>
+                        `);
+                        return;
+                    }
+                    
+                    let html = '';
+                    data.forEach(story => {
+                        // Format date
+                        const date = new Date(story.created_at);
+                        const formattedDate = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+                        
+                        // Create story card
+                        html += `
+                            <div class="col-md-6 mb-4">
+                                <div class="card h-100">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <h5 class="card-title mb-0">${story.universe || ''} Story</h5>
+                                            <span class="badge bg-secondary">${story.story_length || 'medium'}</span>
+                                        </div>
+                                        <p class="text-muted small mb-2">${formattedDate}</p>
+                                        <p class="card-text">${story.prompt ? story.prompt.substring(0, 150) + '...' : 'No prompt available'}</p>
+                                        <div class="d-flex justify-content-between mt-3">
+                                            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#storyModal" data-story-id="${story.id}">
+                                                <i class="fas fa-book-open me-1"></i> Read
+                                            </button>
+                                            ${story.audio_path ? `
+                                            <button class="btn btn-sm btn-outline-secondary play-audio" data-audio-path="${story.audio_path}">
+                                                <i class="fas fa-play me-1"></i> Play
+                                            </button>
+                                            ` : ''}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    $('#story-list').html(html);
+                    
+                    // Add event listener for audio buttons
+                    $('.play-audio').click(function() {
+                        const audioPath = $(this).data('audio-path');
+                        playAudio(audioPath);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error loading stories:', error);
+                    $('#story-list').html(`
+                        <div class="col-12">
+                            <div class="alert alert-danger">
+                                <i class="fas fa-exclamation-triangle me-2"></i> Error loading stories. Please try again.
+                            </div>
+                        </div>
+                    `);
+                });
+        }
+        
+        // Load story details
+        function loadStoryDetails(storyId) {
+            $('#modal-story-content').html(`
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            `);
+            
+            fetch(`/api/stories/${storyId}`)
+                .then(response => response.json())
+                .then(story => {
+                    // Format the story text with line breaks
+                    const storyText = story.story_text.replace(/\n/g, '<br>');
+                    
+                    let html = `
+                        <div class="mb-3">
+                            <h4>${story.universe || 'Custom'} Story</h4>
+                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                ${story.setting ? `<span class="badge bg-info"><i class="fas fa-map-marker-alt me-1"></i> ${story.setting}</span>` : ''}
+                                ${story.theme ? `<span class="badge bg-success"><i class="fas fa-lightbulb me-1"></i> ${story.theme}</span>` : ''}
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <div class="story-text mb-4">${storyText}</div>
+                        </div>
+                    `;
+                    
+                    if (story.audio_path) {
+                        html += `
+                            <div class="card bg-light mb-3">
+                                <div class="card-body">
+                                    <h5 class="mb-3"><i class="fas fa-headphones me-2"></i> Audio</h5>
+                                    <audio controls class="w-100" src="/static/${story.audio_path}"></audio>
+                                </div>
+                            </div>
+                        `;
+                        
+                        // Enable the Play on Home Assistant button
+                        $('#play-on-ha-btn').prop('disabled', false);
+                    } else {
+                        // Disable the Play on Home Assistant button if no audio
+                        $('#play-on-ha-btn').prop('disabled', true);
+                    }
+                    
+                    $('#modal-story-content').html(html);
+                })
+                .catch(error => {
+                    console.error('Error loading story details:', error);
+                    $('#modal-story-content').html(`
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i> Error loading story details. Please try again.
+                        </div>
+                    `);
+                });
+        }
+        
+        // Play audio
+        function playAudio(audioPath) {
+            // Create an audio element
+            const audio = new Audio(`/static/${audioPath}`);
+            audio.play();
+        }
+        
+        // Check Home Assistant status
+        function checkHomeAssistantStatus() {
+            fetch('/api/integrations/home-assistant/status')
+                .then(response => response.json())
+                .then(data => {
+                    const statusBadge = $('#ha-status-badge');
+                    
+                    if (data.has_config) {
+                        if (data.is_available) {
+                            statusBadge.removeClass('bg-secondary').addClass('bg-success').text('Connected');
+                            $('#ha-integration-status').slideDown();
+                        } else {
+                            statusBadge.removeClass('bg-secondary').addClass('bg-warning').text('Configured but Unavailable');
+                            $('#ha-setup-btn').show();
+                            $('#ha-integration-status').slideDown();
+                        }
+                    } else {
+                        statusBadge.removeClass('bg-secondary').addClass('bg-danger').text('Not Configured');
+                        $('#ha-setup-btn').show();
+                        $('#ha-integration-status').slideDown();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking Home Assistant status:', error);
+                    $('#ha-integration-status').hide();
+                });
+        }
+        
+        // Open Home Assistant player selector
+        function openHaPlayerSelector() {
+            if (!currentStoryId) {
+                showToast('No story selected', 'danger');
+                return;
+            }
+            
+            // Show the player selection modal
+            $('#haPlayerModal').modal('show');
+            
+            // Load media players
+            $('#ha-player-list').html(`
+                <div class="text-center py-3">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading media players...</p>
+                </div>
+            `);
+            
+            fetch('/api/integrations/home-assistant/media-players')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to load media players');
+                    }
+                    return response.json();
+                })
+                .then(players => {
+                    if (players.length === 0) {
+                        $('#ha-player-list').html(`
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle me-2"></i> No media players found in your Home Assistant instance.
+                            </div>
+                        `);
+                        return;
+                    }
+                    
+                    let html = '<div class="list-group">';
+                    players.forEach(player => {
+                        // Show different styling based on player state
+                        let stateClass = 'text-muted';
+                        let stateIcon = 'fa-power-off';
+                        
+                        if (player.state === 'playing') {
+                            stateClass = 'text-success';
+                            stateIcon = 'fa-play';
+                        } else if (player.state === 'paused') {
+                            stateClass = 'text-warning';
+                            stateIcon = 'fa-pause';
+                        } else if (player.state === 'idle') {
+                            stateClass = 'text-info';
+                            stateIcon = 'fa-stop';
+                        }
+                        
+                        html += `
+                            <button class="list-group-item list-group-item-action player-select" data-entity-id="${player.entity_id}">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="fas fa-speaker me-2"></i>
+                                        <strong>${player.name}</strong>
+                                    </div>
+                                    <div class="${stateClass}">
+                                        <i class="fas ${stateIcon} me-1"></i>
+                                        ${player.state}
+                                    </div>
+                                </div>
+                            </button>
+                        `;
+                    });
+                    html += '</div>';
+                    
+                    $('#ha-player-list').html(html);
+                    
+                    // Add event handler for player selection
+                    $('.player-select').click(function() {
+                        const entityId = $(this).data('entity-id');
+                        playStoryOnHomeAssistant(currentStoryId, entityId);
+                        $('#haPlayerModal').modal('hide');
+                    });
+                })
+                .catch(error => {
+                    console.error('Error loading media players:', error);
+                    $('#ha-player-list').html(`
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i> Error loading media players: ${error.message}
+                        </div>
+                    `);
+                });
+        }
+        
+        // Play story on Home Assistant
+        function playStoryOnHomeAssistant(storyId, entityId) {
+            const data = {
+                story_id: storyId,
+                entity_id: entityId
+            };
+            
+            fetch('/api/integrations/home-assistant/play', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to play on Home Assistant');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    showToast('Story is now playing on Home Assistant', 'success');
+                } else {
+                    showToast('Failed to play story on Home Assistant', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error playing on Home Assistant:', error);
+                showToast('Error: ' + error.message, 'danger');
+            });
+        }
+    </script>
+    {% endif %}
 {% endblock %}

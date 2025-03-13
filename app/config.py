@@ -33,6 +33,10 @@ DEFAULT_TTS_PROVIDER = os.getenv("DEFAULT_TTS_PROVIDER", "elevenlabs")
 HOME_ASSISTANT_URL = os.getenv("HOME_ASSISTANT_URL")
 HOME_ASSISTANT_TOKEN = os.getenv("HOME_ASSISTANT_TOKEN")
 
+# Network share for Home Assistant
+NETWORK_SHARE_PATH = os.getenv("NETWORK_SHARE_PATH", "\\\\192.168.2.14\\music\\storyteller")
+NETWORK_SHARE_URL = os.getenv("NETWORK_SHARE_URL", "http://192.168.2.14/music/storyteller")
+
 # Paths
 AUDIO_DIR = BASE_DIR / "app" / "static" / "audio"
 TEMPLATES_DIR = BASE_DIR / "app" / "templates"
