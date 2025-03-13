@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% block title %}Audio Debug{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">Audio File Debug</h1>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">Available Audio Files</div>
+                <div class="card-body">
+                    <div id="loading-spinner" class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p>Loading audio files...</p>
+                    </div>
+                    
+                    <div id="error-message" class="alert alert-danger d-none"></div>
+                    
+                    <ul id="audio-files-list" class="list-group">
+                        <!-- Audio files will be populated here -->
+                    </ul>
+                    
+                    <div id="no-files-message" class="alert alert-info d-none">
+                        No audio files found in the directory.
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">Audio Player</div>
+                <div class="card-body">
+                    <div id="current-file-info" class="mb-3">
+                        <p>No file selected. Click on a file from the list to play.</p>
+                    </div>
+                    
+                    <audio id="audio-player" controls class="w-100 mb-3">
+                        Your browser does not support the audio element.
+                    </audio>
+                    
+                    <div id="player-error" class="alert alert-danger d-none">
+                        Error playing the audio file.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-4">
+        <h3>Audio Directory Information</h3>
+        <div class="card">
+            <div class="card-body" id="directory-info">
+                <!-- Directory info will be populated here -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Fetch audio files
+        fetch('/api/audio/debug/files')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to fetch audio files');
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Hide loading spinner
+                document.getElementById('loading-spinner').classList.add('d-none');
+                
+                // Check if there was an error
+                if (data.error) {
+                    const errorEl = document.getElementById('error-message');
+                    errorEl.textContent = data.error;
+                    errorEl.classList.remove('d-none');
+                    return;
+                }
+                
+                // Check if there are files
+                const filesList = document.getElementById('audio-files-list');
+                if (data.files.length === 0) {
+                    document.getElementById('no-files-message').classList.remove('d-none');
+                } else {
+                    // Populate files list
+                    data.files.forEach(file => {
+                        const li = document.createElement('li');
+                        li.className = 'list-group-item audio-file-item';
+                        li.innerHTML = `
+                            <strong>${file.name}</strong>
+                            <div class="mt-1"><small>Size: ${file.size_formatted}</small></div>
+                            <div class="mt-1"><small>Path: ${file.path}</small></div>
+                        `;
+                        li.addEventListener('click', () => {
+                            playAudio(file);
+                        });
+                        filesList.appendChild(li);
+                    });
+                }
+                
+                // Add directory info
+                if (data.audio_dir) {
+                    const dirInfoEl = document.getElementById('directory-info');
+                    dirInfoEl.innerHTML = `
+                        <p><strong>Audio Directory:</strong> ${data.audio_dir}</p>
+                        <p><strong>File Count:</strong> ${data.files.length}</p>
+                        <div class="alert alert-info">
+                            <p>Files are being served from the above directory and should be accessible at:</p>
+                            <code>/static/audio/filename.mp3</code>
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                // Hide loading spinner and show error
+                document.getElementById('loading-spinner').classList.add('d-none');
+                const errorEl = document.getElementById('error-message');
+                errorEl.textContent = error.message;
+                errorEl.classList.remove('d-none');
+            });
+        
+        // Function to play audio
+        function playAudio(file) {
+            // Update current file info
+            const infoEl = document.getElementById('current-file-info');
+            infoEl.innerHTML = `
+                <strong>Playing:</strong> ${file.name}<br>
+                <strong>URL:</strong> <a href="${file.path}" target="_blank">${file.path}</a>
+            `;
+            
+            // Set audio source and play - normalize the path
+            const player = document.getElementById('audio-player');
+            const audioPath = file.path.startsWith('/static/') 
+                ? file.path 
+                : '/static/' + file.path.replace(/^\/static\//, '');
+            
+            player.src = audioPath;
+            
+            // Add debugging info
+            console.log(`Playing audio file: ${file.name}`);
+            console.log(`Original path: ${file.path}`);
+            console.log(`Normalized path: ${audioPath}`);
+            
+            // Hide previous error if any
+            document.getElementById('player-error').classList.add('d-none');
+            
+            // Add error handler
+            player.onerror = function() {
+                document.getElementById('player-error').classList.remove('d-none');
+                document.getElementById('player-error').textContent = 
+                    `Error playing file: ${file.name}. Status: ${player.error ? player.error.code : 'unknown'}`;
+            };
+            
+            // Highlight selected file
+            document.querySelectorAll('.audio-file-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            event.currentTarget.classList.add('active');
+            
+            // Play the audio
+            player.play().catch(err => {
+                console.error('Error playing audio:', err);
+                document.getElementById('player-error').classList.remove('d-none');
+                document.getElementById('player-error').textContent = 
+                    `Error playing file: ${file.name}. ${err.message}`;
+            });
+        }
+    });
+</script>
+{% endblock %} 

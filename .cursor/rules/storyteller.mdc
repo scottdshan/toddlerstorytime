@@ -1,0 +1,66 @@
+---
+description: the storyteller storey
+globs: 
+alwaysApply: false
+---
+
+# User Rules for LLM Coding with Toddler Storyteller Project
+
+## Project Overview
+1. This is a Flask/FastAPI storytelling application for generating bedtime stories for toddlers.
+2. The application uses LLMs (OpenAI, Claude, Azure) to generate stories and TTS (ElevenLabs) for audio narration.
+3. The architecture follows a modular design with abstraction layers for LLM and TTS providers.
+
+## Project Structure
+1. Respect the established directory structure with `app/` as the main package.
+2. Use the existing factory pattern for both LLM and TTS providers.
+3. Maintain separation between API endpoints, core business logic, and database operations.
+
+## Code Patterns
+1. New LLM providers must implement the `LLMProvider` abstract base class.
+2. New TTS providers must implement the `TTSProvider` abstract base class.
+3. Use factory classes (`LLMFactory`, `TTSFactory`) to instantiate provider implementations.
+4. Follow the existing error handling patterns with appropriate HTTP status codes.
+
+## Configuration
+1. All configuration values should be read from environment variables via the `config.py` file.
+2. API keys and secrets must never be hardcoded - always use environment variables.
+3. Default to SQLite for development, but support other databases via `DATABASE_URL`.
+
+## Story Generation
+1. Stories are generated with these key elements: universe, setting, theme, characters, and story length.
+2. Stories should be age-appropriate for toddlers (2-4 years old).
+3. Use the randomization system to avoid repetitive stories.
+4. Respect user preferences for favorite characters and settings.
+
+## Database
+1. SQLite is used by default and initialized automatically.
+2. All database operations should go through the CRUD functions in `app/db/crud.py`.
+3. Use SQLAlchemy models defined in `app/db/models.py`.
+
+## API Endpoints
+1. Follow RESTful API conventions for endpoint design.
+2. Use Pydantic models for request and response validation.
+3. All story generation goes through `/api/stories/generate`.
+4. All audio generation goes through `/api/audio/generate`.
+
+## Templates & UI
+1. Use Bootstrap for UI components and responsive design.
+2. Maintain the existing color scheme and design language.
+3. All JavaScript should be compatible with modern browsers.
+4. Templates use Jinja2 templating system.
+
+## Security & Performance
+1. No raw SQL queries - use SQLAlchemy ORM.
+2. Validate all user inputs through Pydantic models.
+3. Limit story generation to prevent abuse of LLM services.
+4. Handle API rate limits for external services (OpenAI, ElevenLabs).
+
+## Future Integration
+1. Code should support future integration with Home Assistant.
+2. Maintain compatibility with ESPHome devices for physical controls.
+3. Design for extensibility with new voice providers and LLM services.
+# Your rule content
+
+- You can @ files here
+- You can use markdown but dont have to

@@ -1,0 +1,579 @@
+{% extends "base.html" %}
+
+{% block title %}Create a Story - Toddler Storyteller{% endblock %}
+
+{% set active_page = 'builder' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <h1 class="text-center mb-4">Create a Bedtime Story</h1>
+        
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3 class="mb-0">Story Builder</h3>
+                    <button id="randomizeBtn" class="btn btn-secondary">
+                        <i class="fas fa-random me-2"></i>Randomize
+                    </button>
+                </div>
+                
+                <form id="storyForm">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="childName" class="form-label">Child's Name</label>
+                            <input type="text" class="form-control" id="childName" name="childName" value="Wesley">
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="universe" class="form-label">Story Universe</label>
+                            <select class="form-select" id="universe" name="universe" required>
+                                <option value="" disabled selected>Select a universe</option>
+                                <!-- Options will be populated via JavaScript -->
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="setting" class="form-label">Story Setting</label>
+                            <select class="form-select" id="setting" name="setting" required>
+                                <option value="" disabled selected>Select a setting</option>
+                                <!-- Options will be populated via JavaScript -->
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="theme" class="form-label">Story Theme</label>
+                            <select class="form-select" id="theme" name="theme" required>
+                                <option value="" disabled selected>Select a theme</option>
+                                <!-- Options will be populated via JavaScript -->
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Characters</label>
+                        <div id="charactersContainer" class="border rounded p-3">
+                            <!-- Character checkboxes will be populated via JavaScript -->
+                            <div class="row" id="charactersList"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="storyLength" class="form-label">Story Length</label>
+                            <select class="form-select" id="storyLength" name="storyLength" required>
+                                <option value="" disabled selected>Select length</option>
+                                <!-- Options will be populated via JavaScript -->
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="llmProvider" class="form-label">AI Provider</label>
+                            <select class="form-select" id="llmProvider" name="llmProvider">
+                                <option value="openai">OpenAI</option>
+                                <option value="anthropic">Claude</option>
+                                <option value="azure">Azure OpenAI</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3" id="modelSelectContainer" style="display: none;">
+                            <label for="modelSelect" class="form-label">Model</label>
+                            <select class="form-select" id="modelSelect" name="model">
+                                <!-- Will be populated dynamically based on provider -->
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="ttsProvider" class="form-label">Voice Provider</label>
+                            <select class="form-select" id="ttsProvider" name="ttsProvider">
+                                <option value="elevenlabs">ElevenLabs</option>
+                                <option value="amazon">Amazon Polly</option>
+                                <option value="none">None (Testing)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3" id="voiceSelectContainer">
+                            <label for="voiceSelect" class="form-label">Voice</label>
+                            <select class="form-select" id="voiceSelect" name="voice_id">
+                                <option value="">Loading voices...</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center mt-4">
+                        <button type="submit" id="generateBtn" class="btn btn-primary btn-lg">
+                            <i class="fas fa-wand-magic-sparkles me-2"></i>Generate Story
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Story Result Container (Initially Hidden) -->
+        <div id="storyResult" class="card mb-4" style="display: none;">
+            <div class="card-body">
+                <h3 id="storyTitle" class="text-center mb-3"></h3>
+                
+                <div class="text-center mb-4">
+                    <div id="audioPlayer" class="audio-player">
+                        <audio id="storyAudio" controls style="width: 100%;"></audio>
+                    </div>
+                </div>
+                
+                <div id="storyText" class="story-text"></div>
+                
+                <div class="d-flex justify-content-center mt-4">
+                    <button id="saveStoryBtn" class="btn btn-success me-2">
+                        <i class="fas fa-save me-2"></i>Save to Favorites
+                    </button>
+                    <button id="regenerateBtn" class="btn btn-secondary me-2">
+                        <i class="fas fa-sync me-2"></i>Regenerate
+                    </button>
+                    <button id="shareBtn" class="btn btn-primary">
+                        <i class="fas fa-share-alt me-2"></i>Share
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Loading Indicator (Initially Hidden) -->
+        <div id="loadingContainer" class="text-center my-5" style="display: none;">
+            <div class="card p-5 pulse-animation">
+                <h3>Creating Your Story</h3>
+                <div class="progress mt-3 mb-3">
+                    <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                         role="progressbar" style="width: 0%"></div>
+                </div>
+                <p id="loadingMessage">Gathering story elements...</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize model options for different providers
+        const modelOptions = {
+            openai: [
+                { value: "gpt-4o", label: "GPT-4o" },
+                { value: "gpt-4o-mini", label: "GPT-4o Mini" },
+            ],
+            anthropic: [
+                { value: "claude-3-opus-20240229", label: "Claude 3 Opus" },
+                { value: "claude-3-sonnet-20240229", label: "Claude 3 Sonnet" },
+                { value: "claude-3-haiku-20240307", label: "Claude 3 Haiku" }
+            ],
+            azure: [
+                { value: "aoai-sds-gpt4o-mini-global", label: "GPT-4o Mini" }
+                // Users will need to fill this in based on their Azure setup
+            ]
+        };
+        
+        // Handle LLM provider changes
+        document.getElementById('llmProvider').addEventListener('change', function() {
+            const provider = this.value;
+            const modelContainer = document.getElementById('modelSelectContainer');
+            const modelSelect = document.getElementById('modelSelect');
+            
+            // Clear existing options
+            modelSelect.innerHTML = "";
+            
+            if (provider in modelOptions) {
+                // Show model selector and populate with options
+                modelContainer.style.display = 'block';
+                
+                modelOptions[provider].forEach(option => {
+                    const optElement = document.createElement('option');
+                    optElement.value = option.value;
+                    optElement.textContent = option.label;
+                    modelSelect.appendChild(optElement);
+                });
+                
+                // For Azure, show a field for deployment name
+                if (provider === 'azure') {
+                    // Placeholder for Azure-specific UI elements
+                }
+            } else {
+                // Hide model selector
+                modelContainer.style.display = 'none';
+            }
+        });
+        
+        // Trigger initial setup of model options
+        document.getElementById('llmProvider').dispatchEvent(new Event('change'));
+        // Story settings
+        const storySettings = {
+            universes: [
+                "Paw Patrol", "Disney Princess", "PJ Masks", "Bluey", 
+                "Peppa Pig", "Cocomelon", "Toy Story", "Mickey Mouse Clubhouse", 
+                "Sesame Street", "Original Fantasy World"
+            ],
+            settings: [
+                "Bedtime", "Playground", "Beach", "Zoo", "Farm", "Space", 
+                "Underwater", "Forest", "Jungle", "Mountains", "School", 
+                "Doctor's Office", "Rainy Day", "Snowy Day", "Birthday Party"
+            ],
+            themes: [
+                "Friendship", "Helping Others", "Trying New Things", "Facing Fears", 
+                "Being Kind", "Learning New Skills", "Listening to Parents", "Sharing", 
+                "Patience", "Being Brave", "Taking Turns", "Apologizing", "Gratitude",
+                "Sleep Routine", "Morning Routine"
+            ],
+            characters: [
+                "Wesley", "Mom", "Dad", "Chase", "Marshall", "Skye", "Rubble", 
+                "Rocky", "Zuma", "Ryder", "Elsa", "Anna", "Olaf", "Mickey Mouse", 
+                "Minnie Mouse", "Bluey", "Bingo", "Bandit", "Chilli"
+            ],
+            storyLengths: [
+                "Very Short (2-3 minutes)", "Short (3-5 minutes)", 
+                "Medium (5-7 minutes)", "Long (7-10 minutes)"
+            ]
+        };
+        
+        // Populate form dropdowns and character options
+        function populateFormOptions() {
+            // Populate universe dropdown
+            const universeSelect = document.getElementById('universe');
+            storySettings.universes.forEach(universe => {
+                const option = document.createElement('option');
+                option.value = universe;
+                option.textContent = universe;
+                universeSelect.appendChild(option);
+            });
+            
+            // Populate setting dropdown
+            const settingSelect = document.getElementById('setting');
+            storySettings.settings.forEach(setting => {
+                const option = document.createElement('option');
+                option.value = setting;
+                option.textContent = setting;
+                settingSelect.appendChild(option);
+            });
+            
+            // Populate theme dropdown
+            const themeSelect = document.getElementById('theme');
+            storySettings.themes.forEach(theme => {
+                const option = document.createElement('option');
+                option.value = theme;
+                option.textContent = theme;
+                themeSelect.appendChild(option);
+            });
+            
+            // Populate story length dropdown
+            const lengthSelect = document.getElementById('storyLength');
+            storySettings.storyLengths.forEach(length => {
+                const option = document.createElement('option');
+                option.value = length;
+                option.textContent = length;
+                lengthSelect.appendChild(option);
+            });
+            
+            // Populate character checkboxes
+            const charactersList = document.getElementById('charactersList');
+            storySettings.characters.forEach((character, index) => {
+                const charDiv = document.createElement('div');
+                charDiv.className = 'col-md-4 mb-2';
+                charDiv.innerHTML = `
+                    <div class="form-check">
+                        <input class="form-check-input character-checkbox" type="checkbox" 
+                               value="${character}" id="char${index}">
+                        <label class="form-check-label" for="char${index}">
+                            ${character}
+                        </label>
+                    </div>
+                `;
+                charactersList.appendChild(charDiv);
+            });
+            
+            // Check the first 3 characters by default (including Wesley)
+            for (let i = 0; i < 3 && i < storySettings.characters.length; i++) {
+                document.getElementById(`char${i}`).checked = true;
+            }
+        }
+        
+        // Initialize form
+        populateFormOptions();
+        
+        // Form submission handler
+        document.getElementById('storyForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            generateStory(false);
+        });
+        
+        // Randomize button handler
+        document.getElementById('randomizeBtn').addEventListener('click', function() {
+            generateStory(true);
+        });
+        
+        // Regenerate button handler
+        document.getElementById('regenerateBtn').addEventListener('click', function() {
+            generateStory(false);
+        });
+        
+        // Function to generate a story
+        function generateStory(randomize) {
+            // Get selected characters
+            const selectedCharacters = [];
+            document.querySelectorAll('.character-checkbox:checked').forEach(checkbox => {
+                // Format each character as an object with character_name property
+                selectedCharacters.push({ character_name: checkbox.value });
+            });
+            
+            // Validate form
+            if (!randomize) {
+                const universe = document.getElementById('universe').value;
+                const setting = document.getElementById('setting').value;
+                const theme = document.getElementById('theme').value;
+                const storyLength = document.getElementById('storyLength').value;
+                
+                if (!universe || !setting || !theme || !storyLength) {
+                    showToast('Please fill in all required fields', 'danger');
+                    return;
+                }
+                
+                if (selectedCharacters.length === 0) {
+                    showToast('Please select at least one character', 'danger');
+                    return;
+                }
+            }
+            
+            // Show loading indicator
+            document.getElementById('storyResult').style.display = 'none';
+            document.getElementById('loadingContainer').style.display = 'block';
+            
+            // Simulate progress (since we can't know the actual progress)
+            simulateProgress();
+            
+            // Prepare data
+            const formData = {
+                child_name: document.getElementById('childName').value,
+                universe: document.getElementById('universe').value,
+                setting: document.getElementById('setting').value,
+                theme: document.getElementById('theme').value,
+                story_length: document.getElementById('storyLength').value,
+                characters: selectedCharacters, // Now contains objects with character_name property
+                llm_provider: document.getElementById('llmProvider').value,
+                tts_provider: document.getElementById('ttsProvider').value,
+                voice_id: document.getElementById('voiceSelect').value,
+                randomize: randomize
+            };
+            
+            console.log('Sending story request:', formData);
+            
+            // Make API request
+            fetch('/api/stories/generate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to generate story');
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Update form if randomized
+                if (randomize) {
+                    updateFormWithGeneratedData(data);
+                }
+                
+                // Display the story
+                displayStory(data);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('loadingContainer').style.display = 'none';
+                showToast('Failed to generate story: ' + error.message, 'danger');
+            });
+        }
+        
+        // Function to simulate progress
+        function simulateProgress() {
+            const progressBar = document.getElementById('progressBar');
+            const loadingMessage = document.getElementById('loadingMessage');
+            let progress = 0;
+            
+            const messages = [
+                "Gathering story elements...",
+                "Creating characters...",
+                "Building the plot...",
+                "Adding magic touches...",
+                "Generating story text...",
+                "Creating audio narration..."
+            ];
+            
+            const interval = setInterval(() => {
+                progress += 5;
+                if (progress > 100) {
+                    clearInterval(interval);
+                    return;
+                }
+                
+                progressBar.style.width = progress + '%';
+                
+                // Update loading message at certain points
+                if (progress === 20) loadingMessage.textContent = messages[1];
+                else if (progress === 40) loadingMessage.textContent = messages[2];
+                else if (progress === 60) loadingMessage.textContent = messages[3];
+                else if (progress === 75) loadingMessage.textContent = messages[4];
+                else if (progress === 90) loadingMessage.textContent = messages[5];
+            }, 500);
+        }
+        
+        // Function to update the form with generated data
+        function updateFormWithGeneratedData(data) {
+            document.getElementById('universe').value = data.universe;
+            document.getElementById('setting').value = data.setting;
+            document.getElementById('theme').value = data.theme;
+            document.getElementById('storyLength').value = data.story_length;
+            
+            // Reset character checkboxes
+            document.querySelectorAll('.character-checkbox').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            
+            // Check the characters from the generated story
+            data.characters.forEach(character => {
+                document.querySelectorAll('.character-checkbox').forEach(checkbox => {
+                    if (checkbox.value === character.character_name) {
+                        checkbox.checked = true;
+                    }
+                });
+            });
+        }
+        
+        // Function to display the generated story
+        function displayStory(data) {
+            // Hide loading indicator
+            document.getElementById('loadingContainer').style.display = 'none';
+            
+            // Extract title from story text (assuming first line is the title)
+            let storyLines = data.story_text.split('\n');
+            let title = storyLines[0].replace(/^#+ /, ''); // Remove Markdown heading syntax
+            
+            // Set story title
+            document.getElementById('storyTitle').textContent = title;
+            
+            // Format story text with paragraphs
+            const formattedText = data.story_text.replace(/\n\n/g, '<br><br>');
+            document.getElementById('storyText').innerHTML = formattedText;
+            
+            // Set audio source if available
+            if (data.audio_path) {
+                const audioElement = document.getElementById('storyAudio');
+                // Fix the path handling - ensure it has the /static/ prefix
+                const audioPath = data.audio_path.startsWith('/static/') 
+                    ? data.audio_path 
+                    : '/static/' + data.audio_path;
+                
+                audioElement.src = audioPath;
+                console.log('Setting audio source to:', audioPath);
+                audioElement.load();
+                // Try to play the audio automatically (may be blocked by browser policies)
+                audioElement.addEventListener('canplaythrough', function() {
+                    // Add a slight delay to ensure the audio is fully loaded
+                    setTimeout(() => {
+                        try {
+                            audioElement.play().catch(e => console.log('Auto-play prevented: ', e));
+                        } catch (e) {
+                            console.log('Error auto-playing audio: ', e);
+                        }
+                    }, 1000);
+                }, { once: true });
+            }
+            
+            // Show story result container
+            document.getElementById('storyResult').style.display = 'block';
+            
+            // Scroll to the story result
+            document.getElementById('storyResult').scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        // Share button functionality
+        document.getElementById('shareBtn').addEventListener('click', function() {
+            // This is a simple implementation - you might want to enhance this
+            // with proper sharing options in a production environment
+            showToast('Sharing functionality will be implemented in a future update.', 'info');
+        });
+        
+        // TTS Provider Change Handler
+        document.getElementById('ttsProvider').addEventListener('change', function() {
+            const provider = this.value;
+            const voiceSelect = document.getElementById('voiceSelect');
+            const voiceSelectContainer = document.getElementById('voiceSelectContainer');
+            
+            // If "none" provider is selected, hide the voice selection
+            if (provider === 'none') {
+                voiceSelectContainer.style.display = 'none';
+                return;
+            }
+            
+            // Show the voice selector
+            voiceSelectContainer.style.display = 'block';
+            
+            // Clear existing options
+            voiceSelect.innerHTML = '<option value="">Loading voices...</option>';
+            
+            // Fetch available voices for the selected provider
+            fetch(`/api/audio/voices?provider=${provider}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch voices');
+                    }
+                    return response.json();
+                })
+                .then(voices => {
+                    // Sort voices by name
+                    voices.sort((a, b) => a.name.localeCompare(b.name));
+                    
+                    // Clear loading option
+                    voiceSelect.innerHTML = '';
+                    
+                    // Add a default option
+                    const defaultOption = document.createElement('option');
+                    defaultOption.value = '';
+                    defaultOption.textContent = 'Select a voice';
+                    voiceSelect.appendChild(defaultOption);
+                    
+                    // Add voice options
+                    voices.forEach(voice => {
+                        const option = document.createElement('option');
+                        option.value = voice.voice_id;
+                        
+                        // Format the display name based on available info
+                        let displayName = voice.name;
+                        if (voice.gender) {
+                            displayName += ` (${voice.gender})`;
+                        }
+                        if (voice.language) {
+                            displayName += ` - ${voice.language}`;
+                        }
+                        
+                        option.textContent = displayName;
+                        voiceSelect.appendChild(option);
+                    });
+                    
+                    // Select first voice by default if none selected
+                    if (voiceSelect.value === '' && voices.length > 0) {
+                        voiceSelect.value = voices[0].voice_id;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching voices:', error);
+                    voiceSelect.innerHTML = '<option value="">Error loading voices</option>';
+                    showToast('Failed to load voices: ' + error.message, 'danger');
+                });
+        });
+        
+        // Trigger voice loading for the default selected provider
+        document.getElementById('ttsProvider').dispatchEvent(new Event('change'));
+    });
+</script>
+{% endblock %}
