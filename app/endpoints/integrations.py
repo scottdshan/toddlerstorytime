@@ -12,9 +12,12 @@ from app.config import HOME_ASSISTANT_URL, NETWORK_SHARE_PATH, NETWORK_SHARE_URL
 # Set up logger
 logger = logging.getLogger(__name__)
 
-# Define request model here instead of importing
+# Define request models
 class PlayRequest(BaseModel):
     story_id: int
+    entity_id: str
+
+class PauseRequest(BaseModel):
     entity_id: str
 
 router = APIRouter()
@@ -85,6 +88,56 @@ async def play_story(play_request: PlayRequest, db: Session = Depends(get_db)):
         raise
     except Exception as e:
         logger.error(f"Error playing story on Home Assistant: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/home-assistant/pause", response_model=Dict[str, bool])
+async def pause_media(pause_request: PauseRequest):
+    """Pause media playback on a Home Assistant media player"""
+    try:
+        # Log entity ID
+        logger.info(f"Pausing media on entity ID: {pause_request.entity_id}")
+        
+        # Send to Home Assistant
+        logger.info("Initializing Home Assistant integration")
+        ha = HomeAssistantIntegration()
+        
+        logger.info("Calling pause_media method")
+        success = ha.pause_media(pause_request.entity_id)
+        
+        logger.info(f"Pause media result: {success}")
+        
+        if not success:
+            logger.error("Failed to pause media on Home Assistant")
+            raise HTTPException(status_code=500, detail="Failed to pause media on Home Assistant")
+        
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Error pausing media on Home Assistant: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/home-assistant/play_pause", response_model=Dict[str, bool])
+async def play_pause_media(pause_request: PauseRequest):
+    """Toggle play/pause state on a Home Assistant media player"""
+    try:
+        # Log entity ID
+        logger.info(f"Toggling play/pause on entity ID: {pause_request.entity_id}")
+        
+        # Send to Home Assistant
+        logger.info("Initializing Home Assistant integration")
+        ha = HomeAssistantIntegration()
+        
+        logger.info("Calling play_pause method")
+        success = ha.play_pause(pause_request.entity_id)
+        
+        logger.info(f"Play/pause media result: {success}")
+        
+        if not success:
+            logger.error("Failed to toggle play/pause on Home Assistant")
+            raise HTTPException(status_code=500, detail="Failed to toggle play/pause on Home Assistant")
+        
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Error toggling play/pause on Home Assistant: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/home-assistant/status", response_model=Dict[str, bool])

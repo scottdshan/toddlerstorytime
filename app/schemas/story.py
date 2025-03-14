@@ -45,6 +45,7 @@ class StoryGenRequest(BaseModel):
 
 class StoryResponse(StoryBase):
     id: int
+    title: Optional[str] = "Bedtime Story"
     prompt: str
     story_text: str
     audio_path: Optional[str] = None
@@ -56,10 +57,12 @@ class StoryResponse(StoryBase):
 
 class StoryHistoryResponse(BaseModel):
     id: int
+    title: Optional[str] = "Bedtime Story"
     universe: str
     setting: str
     theme: str
     story_length: str
+    characters: List[StoryCharacter]
     created_at: datetime
     audio_path: Optional[str]
 

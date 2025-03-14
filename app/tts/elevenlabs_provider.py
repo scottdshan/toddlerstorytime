@@ -6,7 +6,7 @@ from typing import Optional, List, Dict, Any, cast, Iterator
 from elevenlabs import generate, save, set_api_key, voices
 from elevenlabs.api import User
 
-from app.config import ELEVENLABS_API_KEY, DEFAULT_VOICE_ID, AUDIO_DIR, NETWORK_SHARE_PATH, NETWORK_SHARE_URL
+from app.config import ELEVENLABS_API_KEY, DEFAULT_VOICE_ID, AUDIO_DIR, NETWORK_SHARE_PATH
 from app.tts.base import TTSProvider
 
 # Set up logging
@@ -76,52 +76,28 @@ class ElevenLabsProvider(TTSProvider):
             Path to the generated audio file
         """
         try:
-            # Use provided voice_id or default to instance voice_id
             voice = voice_id or self.voice_id
-            
-            # Generate audio
-            audio_data = generate(
-                text=text,
-                voice=str(voice),
-                model="eleven_multilingual_v2"
-            )
-            
-            # Convert to bytes if it's an iterator
-            if isinstance(audio_data, Iterator):
-                audio_bytes = b''.join(audio_data)
-            else:
-                audio_bytes = audio_data
-            
-            # Create a unique filename
+            audio_data = generate(text=text, voice=str(voice), model="eleven_multilingual_v2")
+            audio_bytes = b''.join(audio_data) if isinstance(audio_data, Iterator) else audio_data
+
             filename = f"story_{uuid.uuid4()}.mp3"
-            # Local file path
             local_file_path = os.path.join(self.output_dir, filename)
-            # Network file path
             network_file_path = os.path.join(self.network_share_path, filename)
-            # Local URL path (for web app)
             local_url_path = f"/static/audio/{filename}"
-            
-            # Save audio to local file
+
             save(audio_bytes, local_file_path)
             logger.info(f"Generated ElevenLabs audio file at {local_file_path}")
-            
-            # Save to network share if available
+
             if self.network_share_available:
                 try:
-                    with open(local_file_path, 'rb') as src_file:
-                        audio_data = src_file.read()
-                        
                     with open(network_file_path, 'wb') as dest_file:
-                        dest_file.write(audio_data)
+                        dest_file.write(audio_bytes)
                     logger.info(f"Copied audio file to network share at {network_file_path}")
-                    
                 except Exception as e:
                     logger.error(f"Failed to save to network share: {e}")
-            
-            logger.info(f"ElevenLabs audio URL path: {local_url_path}")
-            # Return audio path (remove /static/ for consistency with database)
+
             return local_url_path.replace('/static/', '')
-        
+
         except Exception as e:
             logger.error(f"Error generating audio with ElevenLabs: {e}")
             return None

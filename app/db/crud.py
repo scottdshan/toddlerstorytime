@@ -8,8 +8,9 @@ def create_story(db: Session, story_data: Dict[str, Any]) -> models.StoryHistory
     """
     Create a new story entry in the database
     """
-    # Create the story
+    # Create the story with title field 
     db_story = models.StoryHistory(
+        title=story_data.get("title", "Bedtime Story"),
         universe=story_data.get("universe"),
         setting=story_data.get("setting"),
         theme=story_data.get("theme"),
@@ -47,11 +48,24 @@ def get_story_by_id(db: Session, story_id: int) -> Optional[models.StoryHistory]
     """
     return db.query(models.StoryHistory).filter(models.StoryHistory.id == story_id).first()
 
-def get_recent_stories(db: Session, limit: int = 10) -> List[models.StoryHistory]:
+def get_recent_stories(db: Session, page: int = 1, items_per_page: int = 10) -> List[models.StoryHistory]:
     """
-    Get the most recent stories
+    Get the most recent stories with pagination
+    
+    Args:
+        db: Database session
+        page: Page number (starting from 1)
+        items_per_page: Number of items per page
+        
+    Returns:
+        List of stories for the requested page
     """
-    return db.query(models.StoryHistory).order_by(models.StoryHistory.created_at.desc()).limit(limit).all()
+    # Calculate offset
+    offset = (page - 1) * items_per_page
+    
+    return db.query(models.StoryHistory).order_by(
+        models.StoryHistory.created_at.desc()
+    ).offset(offset).limit(items_per_page).all()
 
 def get_story_elements_frequency(db: Session, days: int = 14) -> Dict[str, Dict[str, int]]:
     """
@@ -78,32 +92,37 @@ def get_story_elements_frequency(db: Session, days: int = 14) -> Dict[str, Dict[
         # Count frequencies
         for story in recent_stories:
             # Universe frequency
-            if story.universe:
-                if story.universe in frequencies["universes"]:
-                    frequencies["universes"][story.universe] += 1
+            universe = getattr(story, "universe", None)
+            if universe:
+                if universe in frequencies["universes"]:
+                    frequencies["universes"][universe] += 1
                 else:
-                    frequencies["universes"][story.universe] = 1
+                    frequencies["universes"][universe] = 1
                     
             # Setting frequency
-            if story.setting:
-                if story.setting in frequencies["settings"]:
-                    frequencies["settings"][story.setting] += 1
+            setting = getattr(story, "setting", None)
+            if setting:
+                if setting in frequencies["settings"]:
+                    frequencies["settings"][setting] += 1
                 else:
-                    frequencies["settings"][story.setting] = 1
+                    frequencies["settings"][setting] = 1
                     
             # Theme frequency
-            if story.theme:
-                if story.theme in frequencies["themes"]:
-                    frequencies["themes"][story.theme] += 1
+            theme = getattr(story, "theme", None)
+            if theme:
+                if theme in frequencies["themes"]:
+                    frequencies["themes"][theme] += 1
                 else:
-                    frequencies["themes"][story.theme] = 1
+                    frequencies["themes"][theme] = 1
                     
             # Character frequency
             for character in story.characters:
-                if character.character_name in frequencies["characters"]:
-                    frequencies["characters"][character.character_name] += 1
-                else:
-                    frequencies["characters"][character.character_name] = 1
+                char_name = getattr(character, "character_name", None)
+                if char_name:
+                    if char_name in frequencies["characters"]:
+                        frequencies["characters"][char_name] += 1
+                    else:
+                        frequencies["characters"][char_name] = 1
     except Exception as e:
         # Handle any database errors or if the table doesn't exist yet
         frequencies = {
@@ -141,3 +160,59 @@ def get_preferences(db: Session) -> Optional[models.StoryPreferences]:
     Get user preferences for stories
     """
     return db.query(models.StoryPreferences).first()
+
+def update_story_audio_path(db: Session, story_id: int, audio_path: str) -> Optional[models.StoryHistory]:
+    """
+    Update the audio path for a story
+    
+    Args:
+        db: Database session
+        story_id: ID of the story to update
+        audio_path: New audio path
+        
+    Returns:
+        Updated story object or None if story not found
+    """
+    story = db.query(models.StoryHistory).filter(models.StoryHistory.id == story_id).first()
+    if story is not None:
+        # Use setattr instead of direct assignment
+        setattr(story, "audio_path", audio_path)
+        db.commit()
+        db.refresh(story)
+    return story
+
+def delete_story(db: Session, story_id: int) -> bool:
+    """
+    Delete a story and its associated characters
+    
+    Args:
+        db: Database session
+        story_id: ID of the story to delete
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        # First delete associated characters
+        db.query(models.StoryCharacter).filter(models.StoryCharacter.story_id == story_id).delete()
+        
+        # Then delete the story
+        db.query(models.StoryHistory).filter(models.StoryHistory.id == story_id).delete()
+        
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        raise e
+
+def get_story_count(db: Session) -> int:
+    """
+    Get the total number of stories in the database
+    
+    Args:
+        db: Database session
+        
+    Returns:
+        Total number of stories
+    """
+    return db.query(models.StoryHistory).count()

@@ -9,6 +9,7 @@ class StoryHistory(Base):
     __tablename__ = "story_history"
 
     id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(255), index=True)
     universe = Column(String(100))
     setting = Column(String(100))
     theme = Column(String(100))
@@ -16,7 +17,7 @@ class StoryHistory(Base):
     prompt = Column(Text)
     story_text = Column(Text)
     audio_path = Column(String(255))
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
     
     # Track which characters were in the story
     characters = relationship("StoryCharacter", back_populates="story")

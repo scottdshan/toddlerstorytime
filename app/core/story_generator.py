@@ -181,6 +181,7 @@ class StoryGenerator:
             
             # Prepare story object for database
             story_data = {
+                "title": title,
                 "universe": story_elements.get("universe", ""),
                 "setting": story_elements.get("setting", ""),
                 "theme": story_elements.get("theme", ""),
@@ -199,7 +200,7 @@ class StoryGenerator:
             # Format the response to match the expected schema
             story_obj = {
                 "id": db_story.id,
-                "title": title,
+                "title": title,  # Include title here for the response even though it's not in DB
                 "universe": db_story.universe,
                 "setting": db_story.setting,
                 "theme": db_story.theme,
@@ -240,28 +241,34 @@ class StoryGenerator:
             if not story:
                 raise ValueError(f"Story with ID {story_id} not found")
             
+            # Get the current TTS provider name from environment
+            tts_provider_name = os.environ.get("TTS_PROVIDER", "elevenlabs")
             # Get voice ID from environment variable if set
             voice_id = os.environ.get("TTS_VOICE_ID")
             
+            logger.info(f"Generating audio with provider: {tts_provider_name}, voice: {voice_id}")
+            
+            # Create a new instance of the TTS provider for this request
+            # This ensures we use the currently selected provider, not the one from initialization
+            tts_provider = TTSFactory.get_provider(tts_provider_name, voice_id)
+            
             # Generate audio using TTS provider
-            audio_path = self.tts_provider.generate_audio(str(story.story_text), voice_id=voice_id)
+            audio_path = tts_provider.generate_audio(str(story.story_text), voice_id=voice_id)
             
             # Update story with audio path in database - remove /static/ prefix for storage
             if audio_path:
-                # Standardize the path by removing /static/ prefix if present
-                db_path = audio_path.replace('/static/', '') if audio_path.startswith('/static/') else audio_path
-                
-                # Use setattr for SQLAlchemy models to avoid type errors
-                setattr(story, "audio_path", db_path)
-                self.db.commit()
-                
+                # Remove /static/ if present for consistency in database
+                db_path = audio_path.replace('/static/', '')
+                crud.update_story_audio_path(self.db, numeric_id, db_path)
                 logger.info(f"Updated story {story_id} with audio path: {db_path}")
-            
-            return audio_path or ""
-            
+                return audio_path
+            else:
+                logger.warning(f"No audio path returned for story {story_id}")
+                return ""
+                
         except Exception as e:
-            logger.error(f"Error generating audio: {str(e)}", exc_info=True)
-            return ""
+            logger.error(f"Error generating audio for story {story_id}: {str(e)}", exc_info=True)
+            raise
     
     def get_recent_stories(self, limit: int = 5) -> List[Dict[str, Any]]:
         """
@@ -279,8 +286,11 @@ class StoryGenerator:
             # Convert SQLAlchemy objects to dictionaries
             stories = []
             for story in db_stories:
+                # Get the title from the database or use a default
+                title = getattr(story, "title", None) or "Bedtime Story"
                 stories.append({
                     "id": story.id,
+                    "title": title,
                     "universe": story.universe,
                     "setting": story.setting,
                     "theme": story.theme,

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 import logging
@@ -131,20 +131,41 @@ async def generate_story(story_request: StoryGenRequest, db: Session = Depends(g
             detail=error_msg
         )
 
-@router.get("/history", response_model=List[StoryHistoryResponse])
-async def get_story_history(limit: int = 10, db: Session = Depends(get_db)):
+@router.get("/history", response_model=Dict[str, Any])
+async def get_story_history(page: int = 1, items_per_page: int = 10, db: Session = Depends(get_db)):
     """
-    Get the history of generated stories
+    Get the history of generated stories with pagination
+    
+    Args:
+        page: Page number (starting from 1)
+        items_per_page: Number of items per page
+        db: Database session
     """
     try:
-        # Use the CRUD function instead of story_generator.get_recent_stories
-        stories = crud.get_recent_stories(db, limit)
+        # Get the total number of stories
+        total_stories = crud.get_story_count(db)
+        
+        # Calculate total pages
+        total_pages = (total_stories + items_per_page - 1) // items_per_page
+        
+        # Ensure page is within valid range
+        if page < 1:
+            page = 1
+        elif page > total_pages and total_pages > 0:
+            page = total_pages
+        
+        # Use the CRUD function with pagination
+        stories = crud.get_recent_stories(db, page, items_per_page)
         
         # Format the response to match the expected schema
         formatted_stories = []
         for story in stories:
+            # Get the title from the database or use a default
+            title = getattr(story, "title", None) or "Bedtime Story"
+            
             formatted_story = {
                 "id": story.id,
+                "title": title,
                 "universe": story.universe,
                 "setting": story.setting,
                 "theme": story.theme,
@@ -159,8 +180,19 @@ async def get_story_history(limit: int = 10, db: Session = Depends(get_db)):
                 "created_at": story.created_at
             }
             formatted_stories.append(formatted_story)
-            
-        return formatted_stories
+        
+        # Return the stories along with pagination info
+        return {
+            "stories": formatted_stories,
+            "pagination": {
+                "total_stories": total_stories,
+                "total_pages": total_pages,
+                "current_page": page,
+                "items_per_page": items_per_page,
+                "has_previous": page > 1,
+                "has_next": page < total_pages
+            }
+        }
     except Exception as e:
         logger.error(f"Error retrieving story history: {str(e)}", exc_info=True)
         raise HTTPException(
@@ -168,12 +200,12 @@ async def get_story_history(limit: int = 10, db: Session = Depends(get_db)):
             detail=f"Failed to retrieve story history: {str(e)}"
         )
 
-@router.get("/recent", response_model=List[StoryHistoryResponse])
-async def get_recent_stories(limit: int = 10, db: Session = Depends(get_db)):
+@router.get("/recent", response_model=Dict[str, Any])
+async def get_recent_stories(page: int = 1, items_per_page: int = 10, db: Session = Depends(get_db)):
     """
-    Get recent stories (alias for history endpoint)
+    Get recent stories with pagination (alias for history endpoint)
     """
-    return await get_story_history(limit, db)
+    return await get_story_history(page, items_per_page, db)
 
 @router.get("/{story_id}", response_model=StoryResponse)
 async def get_story(story_id: str):
@@ -200,8 +232,11 @@ async def get_story(story_id: str):
             )
         
         # Format the response to match the expected schema
+        # Get the title from the database or use a default
+        title = getattr(story, "title", None) or "Bedtime Story"
         formatted_story = {
             "id": story.id,
+            "title": title,
             "universe": story.universe,
             "setting": story.setting,
             "theme": story.theme,
@@ -263,4 +298,41 @@ async def get_preferences(db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve preferences: {str(e)}"
+        )
+
+@router.delete("/{story_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_story(story_id: str, db: Session = Depends(get_db)):
+    """
+    Delete a story by ID
+    """
+    try:
+        # Convert string ID to integer
+        try:
+            numeric_id = int(story_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid story ID format: {story_id}. Must be an integer."
+            )
+            
+        # Get the story to check if it exists
+        story = crud.get_story_by_id(db, numeric_id)
+        
+        if not story:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Story with ID {story_id} not found"
+            )
+        
+        # Delete the story
+        crud.delete_story(db, numeric_id)
+        
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting story: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete story: {str(e)}"
         )

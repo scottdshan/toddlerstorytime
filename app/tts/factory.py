@@ -33,6 +33,7 @@ class TTSFactory:
             voice_id = os.environ.get("TTS_VOICE_ID")
         
         if provider_name == "elevenlabs":
+            print(f"Using ElevenLabs provider with voice ID: {voice_id}")
             return ElevenLabsProvider(voice_id=voice_id)
         elif provider_name == "none":
             return NoneProvider(voice_id=voice_id)

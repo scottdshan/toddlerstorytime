@@ -188,4 +188,90 @@ class HomeAssistantIntegration:
             data=service_data
         )
         
-        return response is not None 
+        return response is not None
+    
+    def pause_media(self, entity_id: str) -> bool:
+        """
+        Pause media playback on a specific media player.
+        
+        Args:
+            entity_id: The media_player entity ID to pause
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        logger.info(f"Pausing media on entity: {entity_id}")
+        
+        service_data = {
+            "entity_id": entity_id
+        }
+        
+        logger.info(f"Sending pause request to Home Assistant: {service_data}")
+        
+        try:
+            # Fix for mypy: ensure base_url is not None before calling urljoin
+            base_url = self.base_url or ""
+            url = urljoin(base_url, f"api/services/media_player/media_pause")
+            logger.info(f"Full request URL: {url}")
+            
+            response = requests.post(
+                url, 
+                headers=self._headers, 
+                json=service_data, 
+                timeout=10
+            )
+            
+            logger.info(f"Response status code: {response.status_code}")
+            logger.info(f"Response content: {response.content}")
+            
+            response.raise_for_status()
+            
+            # Even if response is empty, return True if status code is successful
+            return response.status_code < 400
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error communicating with Home Assistant: {e}")
+            return False
+    
+    def play_pause(self, entity_id: str) -> bool:
+        """
+        Toggle play/pause state on a specific media player.
+        
+        Args:
+            entity_id: The media_player entity ID to toggle play/pause
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        logger.info(f"Toggling play/pause on entity: {entity_id}")
+        
+        service_data = {
+            "entity_id": entity_id
+        }
+        
+        logger.info(f"Sending play_pause request to Home Assistant: {service_data}")
+        
+        try:
+            # Fix for mypy: ensure base_url is not None before calling urljoin
+            base_url = self.base_url or ""
+            url = urljoin(base_url, f"api/services/media_player/media_play_pause")
+            logger.info(f"Full request URL: {url}")
+            
+            response = requests.post(
+                url, 
+                headers=self._headers, 
+                json=service_data, 
+                timeout=10
+            )
+            
+            logger.info(f"Response status code: {response.status_code}")
+            logger.info(f"Response content: {response.content}")
+            
+            response.raise_for_status()
+            
+            # Even if response is empty, return True if status code is successful
+            return response.status_code < 400
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error communicating with Home Assistant: {e}")
+            return False 
