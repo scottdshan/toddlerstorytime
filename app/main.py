@@ -1,4 +1,5 @@
 import os
+import sqlite3
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -7,9 +8,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 import logging
 
-from app.endpoints import stories, audio, integrations
+from app.endpoints import stories, audio, integrations, preferences
 from app.db.database import Base, engine
-from app.config import TEMPLATES_DIR, STATIC_DIR, AUDIO_DIR, APP_NAME, DEBUG, BASE_DIR
+from app.config import TEMPLATES_DIR, STATIC_DIR, AUDIO_DIR, APP_NAME, DEBUG, BASE_DIR, DATABASE_URL
 
 # Configure logging
 log_file = os.path.join(BASE_DIR, "logs.txt")
@@ -22,6 +23,65 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+# Check if the database needs migration
+def check_database_schema():
+    try:
+        # Only check SQLite databases
+        if not DATABASE_URL.startswith("sqlite:///"):
+            return
+
+        # Get database path
+        if DATABASE_URL.startswith('sqlite:///'):
+            db_path = DATABASE_URL[10:]
+            if not db_path.startswith('/'):
+                db_path = os.path.join(BASE_DIR, db_path)
+        else:
+            return
+        
+        # Check if the database exists
+        if not os.path.exists(db_path):
+            logger.info("Database doesn't exist yet. It will be created.")
+            return
+        
+        # Connect to the database
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # Check if the story_preferences table exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='story_preferences'")
+        if not cursor.fetchone():
+            logger.info("story_preferences table doesn't exist. No migration check needed.")
+            conn.close()
+            return
+        
+        # Check for the new columns
+        cursor.execute("PRAGMA table_info(story_preferences)")
+        columns = [row[1] for row in cursor.fetchall()]
+        
+        # Define the columns that should be present
+        expected_columns = [
+            "id", "child_name", "favorite_universe", "favorite_character", 
+            "favorite_setting", "favorite_theme", "preferred_story_length", 
+            "llm_provider", "llm_model", "tts_provider", "voice_id", 
+            "audio_dir", "network_share_path", "network_share_url", "updated_at"
+        ]
+        
+        # Check for missing columns
+        missing_columns = [col for col in expected_columns if col not in columns]
+        
+        if missing_columns:
+            logger.warning(f"Database schema is missing columns: {missing_columns}")
+            logger.warning("Consider running the migration script (python migrate.py)")
+        else:
+            logger.info("Database schema is up to date")
+        
+        conn.close()
+    except Exception as e:
+        logger.error(f"Error checking database schema: {e}")
+
+# Run schema check
+check_database_schema()
 
 # Create the database tables
 Base.metadata.create_all(bind=engine)
@@ -59,6 +119,7 @@ app.add_middleware(
 app.include_router(stories.router, prefix="/api/stories", tags=["stories"])
 app.include_router(audio.router, prefix="/api/audio", tags=["audio"])
 app.include_router(integrations.router, prefix="/api/integrations", tags=["integrations"])
+app.include_router(preferences.router, prefix="/api/preferences", tags=["preferences"])
 
 @app.get("/")
 async def index(request: Request):
@@ -78,7 +139,7 @@ async def story_history(request: Request):
 @app.get("/preferences")
 async def preferences(request: Request):
     """Render the preferences page"""
-    return templates.TemplateResponse("index.html", {"request": request, "active_page": "preferences"})
+    return templates.TemplateResponse("preferences.html", {"request": request})
 
 @app.get("/health")
 async def health_check():

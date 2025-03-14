@@ -44,6 +44,18 @@ class StoryPreferences(Base):
     favorite_setting = Column(String(100))
     favorite_theme = Column(String(100))
     preferred_story_length = Column(String(50))
-    llm_provider = Column(String(50), default="openai")  # openai, anthropic, local
+    
+    # LLM Provider settings
+    llm_provider = Column(String(50), default="openai")  # openai, anthropic, azure
+    llm_model = Column(String(100))  # The specific model to use
+    
+    # TTS Provider settings
+    tts_provider = Column(String(50), default="elevenlabs")  # elevenlabs, amazon_polly, none
     voice_id = Column(String(100))
+    
+    # Storage settings
+    audio_dir = Column(String(255))  # Custom audio directory path
+    network_share_path = Column(String(255))  # Network share path for Home Assistant
+    network_share_url = Column(String(255))  # URL to access the network share
+    
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

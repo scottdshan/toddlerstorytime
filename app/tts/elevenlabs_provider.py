@@ -1,6 +1,8 @@
 import os
 import uuid
 import logging
+import re
+import glob
 from typing import Optional, List, Dict, Any, cast, Iterator
 
 from elevenlabs import generate, save, set_api_key, voices
@@ -49,28 +51,88 @@ class ElevenLabsProvider(TTSProvider):
     def get_service_info(self) -> Dict[str, Any]:
         """Get user subscription info"""
         try:
-            user = User.from_api()
+            from elevenlabs.api import User
+            user_data = User.from_api()
+            
+            subscription = user_data.subscription
+            if subscription:
+                character_limit = subscription.character_limit
+                character_count = subscription.character_count
+                
+                # Calculate remaining characters
+                remaining = max(0, character_limit - character_count) if character_limit else "Unlimited"
+                
+                return {
+                    "service": "ElevenLabs",
+                    "subscription_tier": subscription.tier,
+                    "character_limit": character_limit or "Unlimited",
+                    "character_count": character_count,
+                    "characters_remaining": remaining,
+                    "voice_count": len(self.get_available_voices()),
+                    "default_voice": self.voice_id
+                }
+            
             return {
-                "provider": "elevenlabs",
-                "subscription": user.subscription.tier,
-                "character_limit": user.subscription.character_limit,
-                "character_count": user.subscription.character_count,
-                "reset_date": user.subscription.next_character_count_reset_unix
+                "service": "ElevenLabs",
+                "error": "Could not retrieve subscription information"
             }
+            
         except Exception as e:
-            logger.error(f"Error fetching ElevenLabs user info: {e}")
+            logger.error(f"Error getting ElevenLabs service info: {e}")
             return {
-                "provider": "elevenlabs",
+                "service": "ElevenLabs",
                 "error": str(e)
             }
     
-    def generate_audio(self, text: str, voice_id: Optional[str] = None) -> Optional[str]:
+    def _create_friendly_filename(self, universe: str, title: str) -> str:
         """
-        Generate audio from text using ElevenLabs API
+        Create a user-friendly filename based on universe and title
+        
+        Args:
+            universe: The story universe
+            title: The story title
+            
+        Returns:
+            A user-friendly filename
+        """
+        # Sanitize the universe and title
+        universe = re.sub(r'[^\w\s-]', '', universe).strip().lower()
+        title = re.sub(r'[^\w\s-]', '', title).strip().lower()
+        
+        # Replace spaces with hyphens
+        universe = re.sub(r'\s+', '-', universe)
+        title = re.sub(r'\s+', '-', title)
+        
+        # Create the base filename
+        base_filename = f"{universe}-{title}"
+        
+        # Check if files with this base name already exist
+        existing_files = glob.glob(os.path.join(self.output_dir, f"{base_filename}*.mp3"))
+        
+        # If no files exist, return the base filename
+        if not existing_files:
+            return f"{base_filename}.mp3"
+        
+        # If files exist, find the highest number and increment
+        highest_num = 0
+        for file in existing_files:
+            # Extract the number if it exists
+            match = re.search(rf"{re.escape(base_filename)}-(\d+)\.mp3$", file)
+            if match:
+                num = int(match.group(1))
+                highest_num = max(highest_num, num)
+        
+        # Return the filename with the incremented number
+        return f"{base_filename}-{highest_num + 1}.mp3"
+    
+    def generate_audio(self, text: str, voice_id: Optional[str] = None, story_info: Optional[Dict[str, Any]] = None) -> Optional[str]:
+        """
+        Generate audio from text using the ElevenLabs API
         
         Args:
             text: The text to convert to speech
-            voice_id: Optional voice ID to use (defaults to instance voice_id)
+            voice_id: Optional voice ID to use
+            story_info: Optional dictionary containing universe and title for the filename
             
         Returns:
             Path to the generated audio file
@@ -80,7 +142,16 @@ class ElevenLabsProvider(TTSProvider):
             audio_data = generate(text=text, voice=str(voice), model="eleven_multilingual_v2")
             audio_bytes = b''.join(audio_data) if isinstance(audio_data, Iterator) else audio_data
 
-            filename = f"story_{uuid.uuid4()}.mp3"
+            # Create a user-friendly filename if story_info is provided
+            if story_info and story_info.get('universe') and story_info.get('title'):
+                filename = self._create_friendly_filename(
+                    story_info.get('universe', 'unknown'), 
+                    story_info.get('title', 'story')
+                )
+            else:
+                # Fallback to UUID if story_info is not provided
+                filename = f"story_{uuid.uuid4()}.mp3"
+                
             local_file_path = os.path.join(self.output_dir, filename)
             network_file_path = os.path.join(self.network_share_path, filename)
             local_url_path = f"/static/audio/{filename}"

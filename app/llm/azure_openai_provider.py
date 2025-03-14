@@ -72,7 +72,7 @@ class AzureOpenAIProvider(LLMProvider):
                     {"role": "user", "content": prompt}
                 ],
                 max_tokens=1500,
-                temperature=0.7
+                temperature=0.9
             )
             
             # Extract and return the story

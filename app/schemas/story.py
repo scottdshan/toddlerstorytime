@@ -76,8 +76,19 @@ class StoryPreferencesBase(BaseModel):
     favorite_setting: Optional[str] = None
     favorite_theme: Optional[str] = None
     preferred_story_length: Optional[str] = None
+    
+    # LLM Provider settings
     llm_provider: Optional[str] = "openai"
+    llm_model: Optional[str] = None
+    
+    # TTS Provider settings
+    tts_provider: Optional[str] = "elevenlabs"
     voice_id: Optional[str] = None
+    
+    # Storage settings
+    audio_dir: Optional[str] = None
+    network_share_path: Optional[str] = None
+    network_share_url: Optional[str] = None
 
 class StoryPreferencesCreate(StoryPreferencesBase):
     pass
@@ -88,3 +99,9 @@ class StoryPreferences(StoryPreferencesBase):
 
     class Config:
         from_attributes = True
+
+class StoryPreferencesResponse(StoryPreferencesBase):
+    id: int
+    
+    class Config:
+        orm_mode = True

@@ -8,13 +8,14 @@ class TTSProvider(ABC):
     """
     
     @abstractmethod
-    def generate_audio(self, text: str, voice_id: Optional[str] = None) -> Optional[str]:
+    def generate_audio(self, text: str, voice_id: Optional[str] = None, story_info: Optional[Dict[str, Any]] = None) -> Optional[str]:
         """
         Generate audio from text
         
         Args:
             text: The text to convert to speech
             voice_id: Optional voice ID to use
+            story_info: Optional dictionary containing universe and title for the filename
             
         Returns:
             Path to the generated audio file or None if generation failed

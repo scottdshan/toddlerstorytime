@@ -1,6 +1,8 @@
 import os
 import logging
 import uuid
+import re
+import glob
 import boto3
 from botocore.exceptions import ClientError
 from typing import Optional, List, Dict, Any
@@ -72,13 +74,55 @@ class AmazonPollyProvider(TTSProvider):
             # Return a minimal client that will fail gracefully when used
             return boto3.Session().client('polly')
     
-    def generate_audio(self, text: str, voice_id: Optional[str] = None) -> Optional[str]:
+    def _create_friendly_filename(self, universe: str, title: str) -> str:
+        """
+        Create a user-friendly filename based on universe and title
+        
+        Args:
+            universe: The story universe
+            title: The story title
+            
+        Returns:
+            A user-friendly filename
+        """
+        # Sanitize the universe and title
+        universe = re.sub(r'[^\w\s-]', '', universe).strip().lower()
+        title = re.sub(r'[^\w\s-]', '', title).strip().lower()
+        
+        # Replace spaces with hyphens
+        universe = re.sub(r'\s+', '-', universe)
+        title = re.sub(r'\s+', '-', title)
+        
+        # Create the base filename
+        base_filename = f"{universe}-{title}"
+        
+        # Check if files with this base name already exist
+        existing_files = glob.glob(os.path.join(self.output_dir, f"{base_filename}*.mp3"))
+        
+        # If no files exist, return the base filename
+        if not existing_files:
+            return f"{base_filename}.mp3"
+        
+        # If files exist, find the highest number and increment
+        highest_num = 0
+        for file in existing_files:
+            # Extract the number if it exists
+            match = re.search(rf"{re.escape(base_filename)}-(\d+)\.mp3$", file)
+            if match:
+                num = int(match.group(1))
+                highest_num = max(highest_num, num)
+        
+        # Return the filename with the incremented number
+        return f"{base_filename}-{highest_num + 1}.mp3"
+    
+    def generate_audio(self, text: str, voice_id: Optional[str] = None, story_info: Optional[Dict[str, Any]] = None) -> Optional[str]:
         """
         Generate audio from text using Amazon Polly
         
         Args:
             text: The text to convert to speech
             voice_id: Optional voice ID to use (overrides default)
+            story_info: Optional dictionary containing universe and title for the filename
             
         Returns:
             Path to the generated audio file or None if generation failed
@@ -93,8 +137,16 @@ class AmazonPollyProvider(TTSProvider):
                 logger.warning(f"Received what appears to be a non-Polly voice ID: {selected_voice_id}. Using default Polly voice instead.")
                 selected_voice_id = "Joanna"  # Fall back to default Polly voice
             
-            # Create a unique filename
-            filename = f"polly_{uuid.uuid4()}.mp3"
+            # Create a user-friendly filename if story_info is provided
+            if story_info and story_info.get('universe') and story_info.get('title'):
+                filename = self._create_friendly_filename(
+                    story_info.get('universe', 'unknown'), 
+                    story_info.get('title', 'story')
+                )
+            else:
+                # Fallback to UUID if story_info is not provided
+                filename = f"polly_{uuid.uuid4()}.mp3"
+                
             # Local file path
             local_file_path = os.path.join(self.output_dir, filename)
             # Network file path

@@ -221,12 +221,18 @@
 {% block scripts %}
     {% if active_page == "history" %}
     <script>
-        // Global variables
+        // Initialize variables
+        let currentPage = 1;
+        let totalPages = 1;
         let currentStoryId = null;
-        let currentPlayingEntityId = null; // Track the current playing entity
-        let isPlaying = false; // Track if media is playing
-        let currentPage = 1; // Track current page for pagination
-        let totalPages = 1;  // Track total pages for pagination
+        let currentPlayingEntityId = null;
+        let isPlaying = false;
+        let currentAudioPath = null;
+        let currentStoryTitle = null;
+        
+        // Get active page from URL parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        const activePage = urlParams.get('page') || 'stories';
         
         // Document ready handler
         $(document).ready(function() {
@@ -314,9 +320,14 @@
                                                 <i class="fas fa-book-open me-1"></i> Read
                                             </button>
                                             ${story.audio_path ? `
-                                            <button class="btn btn-sm btn-outline-secondary play-audio" data-audio-path="${story.audio_path}">
-                                                <i class="fas fa-play me-1"></i> Play
-                                            </button>
+                                            <div>
+                                                <button class="btn btn-sm btn-outline-secondary play-locally" data-audio-path="${story.audio_path}" data-story-id="${story.id}" data-story-title="${story.title || story.universe + ' Story'}">
+                                                    <i class="fas fa-play me-1"></i> Play Locally
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-info play-on-ha" data-audio-path="${story.audio_path}" data-story-id="${story.id}" data-story-title="${story.title || story.universe + ' Story'}">
+                                                    <i class="fas fa-broadcast-tower me-1"></i> Play on HA
+                                                </button>
+                                            </div>
                                             ` : ''}
                                         </div>
                                         <div class="mt-3 text-end">
@@ -333,9 +344,23 @@
                     $('#story-list').html(html);
                     
                     // Add event listener for audio buttons
-                    $('.play-audio').click(function() {
+                    $('.play-locally').click(function() {
                         const audioPath = $(this).data('audio-path');
-                        playAudio(audioPath);
+                        const storyTitle = $(this).data('story-title') || 'Story';
+                        playAudioGlobal(audioPath, storyTitle);
+                    });
+                    
+                    // Add event listener for Home Assistant play button
+                    $('.play-on-ha').click(function() {
+                        const audioPath = $(this).data('audio-path');
+                        const storyTitle = $(this).data('story-title') || 'Story';
+                        
+                        // Store the audio information for later use
+                        currentAudioPath = audioPath;
+                        currentStoryTitle = storyTitle;
+                        
+                        // Open the Home Assistant player selection modal
+                        openHaPlayerSelector();
                     });
                     
                     // Add event listener for delete buttons
@@ -498,7 +523,10 @@
                             <div class="card bg-light mb-3">
                                 <div class="card-body">
                                     <h5 class="mb-3"><i class="fas fa-headphones me-2"></i> Audio</h5>
-                                    <audio controls class="w-100" src="/static/${story.audio_path}"></audio>
+                                    <button class="btn btn-primary mb-2 play-in-global" onclick="playAudioGlobal('${story.audio_path}', '${story.title || 'Story'}')">
+                                        <i class="fas fa-play me-1"></i> Play Audio
+                                    </button>
+                                    <audio controls class="w-100 mt-2" src="/static/${story.audio_path}"></audio>
                                 </div>
                             </div>
                         `;
@@ -524,9 +552,12 @@
         
         // Play audio
         function playAudio(audioPath) {
-            // Create an audio element
-            const audio = new Audio(`/static/${audioPath}`);
-            audio.play();
+            // Get the story ID from the clicked button's data attribute
+            const storyId = $(event.target).closest('.play-audio').data('story-id');
+            const storyTitle = $(event.target).closest('.play-audio').data('story-title') || 'Story';
+            
+            // Use the global audio player
+            playAudioGlobal(audioPath, storyTitle);
         }
         
         // Check Home Assistant status
@@ -559,15 +590,15 @@
         
         // Open Home Assistant player selector
         function openHaPlayerSelector() {
-            if (!currentStoryId) {
-                showToast('No story selected', 'danger');
+            if (!currentAudioPath) {
+                showToast('No audio available', 'danger');
                 return;
             }
             
-            // Show the player selection modal
+            // Show the modal
             $('#haPlayerModal').modal('show');
             
-            // Load media players
+            // Clear previous list and show loading
             $('#ha-player-list').html(`
                 <div class="text-center py-3">
                     <div class="spinner-border text-primary" role="status">
@@ -633,7 +664,7 @@
                     // Add event handler for player selection
                     $('.player-select').click(function() {
                         const entityId = $(this).data('entity-id');
-                        playStoryOnHomeAssistant(currentStoryId, entityId);
+                        playAudioOnHomeAssistant(currentAudioPath, entityId, currentStoryTitle);
                         $('#haPlayerModal').modal('hide');
                     });
                 })
@@ -647,14 +678,19 @@
                 });
         }
         
-        // Play story on Home Assistant
-        function playStoryOnHomeAssistant(storyId, entityId) {
+        // Play audio on Home Assistant
+        function playAudioOnHomeAssistant(audioPath, entityId, title) {
             const data = {
-                story_id: storyId,
-                entity_id: entityId
+                audio_path: audioPath,
+                entity_id: entityId,
+                title: title || 'Story'
             };
             
-            fetch('/api/integrations/home-assistant/play', {
+            // Update UI to show loading
+            $('#player-controls').removeClass('d-none');
+            currentPlayingEntityId = entityId;
+            
+            fetch('/api/integrations/home-assistant/play-audio', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -669,13 +705,11 @@
             })
             .then(data => {
                 if (data.success) {
-                    showToast('Story is now playing on Home Assistant', 'success');
-                    currentPlayingEntityId = entityId; // Store the entity ID
-                    isPlaying = true; // Set playing state to true
-                    updatePlayPauseButton(); // Update button state
-                    $('#player-controls').removeClass('d-none'); // Show player controls
+                    showToast(`Playing "${title}" on Home Assistant`, 'success');
+                    isPlaying = true;
+                    updatePlayPauseButton();
                 } else {
-                    showToast('Failed to play story on Home Assistant', 'danger');
+                    showToast('Failed to play audio on Home Assistant', 'danger');
                 }
             })
             .catch(error => {

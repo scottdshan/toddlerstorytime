@@ -118,21 +118,22 @@
                 
                 <div class="text-center mb-4">
                     <div id="audioPlayer" class="audio-player">
-                        <audio id="storyAudio" controls style="width: 100%;"></audio>
+                        <!-- Keep the audio element but hide it visually -->
+                        <audio id="storyAudio" style="display: none;"></audio>
                     </div>
                 </div>
                 
                 <div id="storyText" class="story-text"></div>
                 
                 <div class="d-flex justify-content-center mt-4">
-                    <button id="saveStoryBtn" class="btn btn-success me-2">
-                        <i class="fas fa-save me-2"></i>Save to Favorites
+                    <button id="playLocallyBtn" class="btn btn-success me-2" style="display: none;">
+                        <i class="fas fa-headphones me-2"></i>Play Locally
                     </button>
                     <button id="regenerateBtn" class="btn btn-secondary me-2">
                         <i class="fas fa-sync me-2"></i>Regenerate
                     </button>
-                    <button id="shareBtn" class="btn btn-primary">
-                        <i class="fas fa-share-alt me-2"></i>Share
+                    <button id="playOnHaBtn" class="btn btn-info" style="display: none;">
+                        <i class="fas fa-broadcast-tower me-2"></i>Play on Home Assistant
                     </button>
                 </div>
             </div>
@@ -149,6 +150,50 @@
                 <p id="loadingMessage">Gathering story elements...</p>
             </div>
         </div>
+        
+        <!-- Home Assistant Player Selection Modal -->
+        <div class="modal fade" id="haPlayerModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Select Media Player</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="ha-player-list">
+                            <div class="text-center py-3">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <p class="mt-2">Loading media players...</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Home Assistant Player Controls -->
+        <div id="player-controls" class="fixed-bottom bg-light shadow-lg p-3 d-none">
+            <div class="container">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <h5 class="mb-0"><i class="fas fa-broadcast-tower me-2"></i> Playing on Home Assistant</h5>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <button id="pause-resume-ha-btn" class="btn btn-primary">
+                            <i class="fas fa-pause me-1"></i> Pause
+                        </button>
+                        <button id="close-player-btn" class="btn btn-outline-secondary ms-2">
+                            <i class="fas fa-times me-1"></i> Close
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -156,55 +201,21 @@
 {% block scripts %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Initialize model options for different providers
-        const modelOptions = {
-            openai: [
-                { value: "gpt-4o", label: "GPT-4o" },
-                { value: "gpt-4o-mini", label: "GPT-4o Mini" },
-            ],
-            anthropic: [
-                { value: "claude-3-opus-20240229", label: "Claude 3 Opus" },
-                { value: "claude-3-sonnet-20240229", label: "Claude 3 Sonnet" },
-                { value: "claude-3-haiku-20240307", label: "Claude 3 Haiku" }
-            ],
-            azure: [
-                { value: "aoai-sds-gpt4o-mini-global", label: "GPT-4o Mini" }
-                // Users will need to fill this in based on their Azure setup
-            ]
-        };
+        // Initialize the model options for different providers
+        initializeModelOptions();
         
-        // Handle LLM provider changes
+        // Load user preferences
+        loadUserPreferences();
+        
+        // Add event listeners for provider changes
         document.getElementById('llmProvider').addEventListener('change', function() {
-            const provider = this.value;
-            const modelContainer = document.getElementById('modelSelectContainer');
-            const modelSelect = document.getElementById('modelSelect');
-            
-            // Clear existing options
-            modelSelect.innerHTML = "";
-            
-            if (provider in modelOptions) {
-                // Show model selector and populate with options
-                modelContainer.style.display = 'block';
-                
-                modelOptions[provider].forEach(option => {
-                    const optElement = document.createElement('option');
-                    optElement.value = option.value;
-                    optElement.textContent = option.label;
-                    modelSelect.appendChild(optElement);
-                });
-                
-                // For Azure, show a field for deployment name
-                if (provider === 'azure') {
-                    // Placeholder for Azure-specific UI elements
-                }
-            } else {
-                // Hide model selector
-                modelContainer.style.display = 'none';
-            }
+            updateModelOptions(this.value);
         });
         
-        // Trigger initial setup of model options
-        document.getElementById('llmProvider').dispatchEvent(new Event('change'));
+        document.getElementById('ttsProvider').addEventListener('change', function() {
+            loadVoices(this.value);
+        });
+        
         // Story settings
         const storySettings = {
             universes: [
@@ -298,6 +309,9 @@
         // Initialize form
         populateFormOptions();
         
+        // Load available voices for the selected TTS provider
+        loadVoices(document.getElementById('ttsProvider').value);
+        
         // Form submission handler
         document.getElementById('storyForm').addEventListener('submit', function(e) {
             e.preventDefault();
@@ -312,6 +326,11 @@
         // Regenerate button handler
         document.getElementById('regenerateBtn').addEventListener('click', function() {
             generateStory(false);
+        });
+        
+        // Audio element ended event listener
+        document.getElementById('storyAudio').addEventListener('ended', function() {
+            showToast('Audio playback complete', 'info');
         });
         
         // Function to generate a story
@@ -465,6 +484,9 @@
             const formattedText = data.story_text.replace(/\n\n/g, '<br><br>');
             document.getElementById('storyText').innerHTML = formattedText;
             
+            // Store the story ID for Home Assistant playback
+            window.currentStoryId = data.id;
+            
             // Set audio source if available
             if (data.audio_path) {
                 const audioElement = document.getElementById('storyAudio');
@@ -476,17 +498,27 @@
                 audioElement.src = audioPath;
                 console.log('Setting audio source to:', audioPath);
                 audioElement.load();
-                // Try to play the audio automatically (may be blocked by browser policies)
-                audioElement.addEventListener('canplaythrough', function() {
-                    // Add a slight delay to ensure the audio is fully loaded
-                    setTimeout(() => {
-                        try {
-                            audioElement.play().catch(e => console.log('Auto-play prevented: ', e));
-                        } catch (e) {
-                            console.log('Error auto-playing audio: ', e);
-                        }
-                    }, 1000);
-                }, { once: true });
+                
+                // Set up Play Locally button
+                const playLocallyBtn = document.getElementById('playLocallyBtn');
+                playLocallyBtn.style.display = 'inline-block';
+                playLocallyBtn.onclick = function() {
+                    // Use the global player instead of playing directly
+                    playAudioGlobal(audioPath, title);
+                };
+                
+                // Show the Home Assistant button if there's audio
+                const playOnHaBtn = document.getElementById('playOnHaBtn');
+                playOnHaBtn.style.display = 'inline-block';
+                playOnHaBtn.onclick = function() {
+                    openHaPlayerSelector();
+                };
+                
+                // Remove autoplay - the user must click a button to play audio
+            } else {
+                // Hide buttons if no audio
+                document.getElementById('playLocallyBtn').style.display = 'none';
+                document.getElementById('playOnHaBtn').style.display = 'none';
             }
             
             // Show story result container
@@ -496,84 +528,474 @@
             document.getElementById('storyResult').scrollIntoView({ behavior: 'smooth' });
         }
         
-        // Share button functionality
-        document.getElementById('shareBtn').addEventListener('click', function() {
-            // This is a simple implementation - you might want to enhance this
-            // with proper sharing options in a production environment
-            showToast('Sharing functionality will be implemented in a future update.', 'info');
-        });
+        // Function to load user preferences from the server
+        async function loadUserPreferences() {
+            try {
+                const response = await fetch('/api/preferences/');
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load preferences');
+                }
+                
+                const preferences = await response.json();
+                console.log('Loaded preferences:', preferences);
+                
+                // Apply preferences to form fields
+                if (preferences) {
+                    // Set child name
+                    if (preferences.child_name) {
+                        document.getElementById('childName').value = preferences.child_name;
+                    }
+                    
+                    // Set favorite universe
+                    if (preferences.favorite_universe) {
+                        const universeSelect = document.getElementById('universe');
+                        for (let i = 0; i < universeSelect.options.length; i++) {
+                            if (universeSelect.options[i].value === preferences.favorite_universe) {
+                                universeSelect.selectedIndex = i;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Set favorite setting
+                    if (preferences.favorite_setting) {
+                        const settingSelect = document.getElementById('setting');
+                        for (let i = 0; i < settingSelect.options.length; i++) {
+                            if (settingSelect.options[i].value === preferences.favorite_setting) {
+                                settingSelect.selectedIndex = i;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Set favorite theme
+                    if (preferences.favorite_theme) {
+                        const themeSelect = document.getElementById('theme');
+                        for (let i = 0; i < themeSelect.options.length; i++) {
+                            if (themeSelect.options[i].value === preferences.favorite_theme) {
+                                themeSelect.selectedIndex = i;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Set preferred story length
+                    if (preferences.preferred_story_length) {
+                        const lengthSelect = document.getElementById('storyLength');
+                        for (let i = 0; i < lengthSelect.options.length; i++) {
+                            if (lengthSelect.options[i].value === preferences.preferred_story_length) {
+                                lengthSelect.selectedIndex = i;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Set LLM provider
+                    if (preferences.llm_provider) {
+                        const providerSelect = document.getElementById('llmProvider');
+                        for (let i = 0; i < providerSelect.options.length; i++) {
+                            if (providerSelect.options[i].value === preferences.llm_provider) {
+                                providerSelect.selectedIndex = i;
+                                updateModelOptions(preferences.llm_provider);
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Set TTS provider and load voices
+                    if (preferences.tts_provider) {
+                        const ttsSelect = document.getElementById('ttsProvider');
+                        for (let i = 0; i < ttsSelect.options.length; i++) {
+                            if (ttsSelect.options[i].value === preferences.tts_provider) {
+                                ttsSelect.selectedIndex = i;
+                                loadVoices(preferences.tts_provider, preferences.voice_id);
+                                break;
+                            }
+                        }
+                    } else {
+                        // Load voices for the current selection if no preference
+                        loadVoices(document.getElementById('ttsProvider').value);
+                    }
+                    
+                    // Check the checkbox for the favorite character
+                    if (preferences.favorite_character) {
+                        const characterCheckboxes = document.querySelectorAll('input[name="character"]');
+                        characterCheckboxes.forEach(checkbox => {
+                            if (checkbox.value === preferences.favorite_character) {
+                                checkbox.checked = true;
+                            }
+                        });
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Error loading preferences:', error);
+                // Show error notification
+                showToast('Error loading preferences: ' + error.message, 'danger');
+            }
+        }
         
-        // TTS Provider Change Handler
-        document.getElementById('ttsProvider').addEventListener('change', function() {
-            const provider = this.value;
+        // Function to load voices for the selected TTS provider
+        async function loadVoices(provider, selectedVoiceId = null) {
+            const voiceContainer = document.getElementById('voiceSelectContainer');
             const voiceSelect = document.getElementById('voiceSelect');
-            const voiceSelectContainer = document.getElementById('voiceSelectContainer');
             
-            // If "none" provider is selected, hide the voice selection
+            // Clear existing options
+            voiceSelect.innerHTML = '';
+            
+            // If provider is 'none', hide the voice selector
             if (provider === 'none') {
-                voiceSelectContainer.style.display = 'none';
+                voiceContainer.style.display = 'none';
+                return;
+            } else {
+                voiceContainer.style.display = 'block';
+            }
+            
+            try {
+                const response = await fetch(`/api/audio/voices?provider=${provider}`);
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load voices');
+                }
+                
+                const voices = await response.json();
+                
+                // Sort voices by name
+                voices.sort((a, b) => {
+                    return a.name.localeCompare(b.name);
+                });
+                
+                // Add options for each voice
+                voices.forEach(voice => {
+                    const option = document.createElement('option');
+                    option.value = voice.voice_id;
+                    
+                    // Format the display name with gender and language if available
+                    let displayName = voice.name;
+                    if (voice.gender || voice.language) {
+                        displayName += ' (';
+                        if (voice.gender) {
+                            displayName += voice.gender;
+                        }
+                        if (voice.gender && voice.language) {
+                            displayName += ', ';
+                        }
+                        if (voice.language) {
+                            displayName += voice.language;
+                        }
+                        displayName += ')';
+                    }
+                    
+                    option.textContent = displayName;
+                    voiceSelect.appendChild(option);
+                    
+                    // Select the voice if it matches the saved preference
+                    if (selectedVoiceId && voice.voice_id === selectedVoiceId) {
+                        option.selected = true;
+                    }
+                });
+                
+            } catch (error) {
+                console.error('Error loading voices:', error);
+                // Show error notification
+                showToast('Error loading voices: ' + error.message, 'danger');
+            }
+        }
+        
+        // Function to initialize the model options
+        function initializeModelOptions() {
+            // Define model options for different providers
+            window.modelOptions = {
+                openai: [
+                    { value: "gpt-4o", label: "GPT-4o" },
+                    { value: "gpt-4o-mini", label: "GPT-4o Mini" },
+                ],
+                anthropic: [
+                    { value: "claude-3-opus-20240229", label: "Claude 3 Opus" },
+                    { value: "claude-3-sonnet-20240229", label: "Claude 3 Sonnet" },
+                    { value: "claude-3-haiku-20240307", label: "Claude 3 Haiku" }
+                ],
+                azure: [
+                    { value: "aoai-sds-gpt4o-mini-global", label: "GPT-4o Mini" }
+                    // Users will need to fill this in based on their Azure setup
+                ]
+            };
+            
+            // Trigger initial setup of model options
+            updateModelOptions(document.getElementById('llmProvider').value);
+        }
+        
+        // Function to update model options based on the selected provider
+        function updateModelOptions(provider) {
+            const modelContainer = document.getElementById('modelSelectContainer');
+            const modelSelect = document.getElementById('modelSelect');
+            
+            // Clear existing options
+            modelSelect.innerHTML = "";
+            
+            if (provider in window.modelOptions) {
+                // Show model selector and populate with options
+                modelContainer.style.display = 'block';
+                
+                window.modelOptions[provider].forEach(option => {
+                    const optElement = document.createElement('option');
+                    optElement.value = option.value;
+                    optElement.textContent = option.label;
+                    modelSelect.appendChild(optElement);
+                });
+                
+                // For Azure, show a field for deployment name
+                if (provider === 'azure') {
+                    // Placeholder for Azure-specific UI elements
+                }
+            } else {
+                // Hide model selector
+                modelContainer.style.display = 'none';
+            }
+        }
+        
+        // Home Assistant Integration
+        let currentPlayingEntityId = null;
+        let isPlaying = false;
+        
+        // Open Home Assistant player selector
+        function openHaPlayerSelector() {
+            if (!window.currentStoryId) {
+                showToast('No story available to play', 'danger');
                 return;
             }
             
-            // Show the voice selector
-            voiceSelectContainer.style.display = 'block';
+            // Show the player selection modal
+            const haPlayerModal = new bootstrap.Modal(document.getElementById('haPlayerModal'));
+            haPlayerModal.show();
             
-            // Clear existing options
-            voiceSelect.innerHTML = '<option value="">Loading voices...</option>';
+            // Load media players
+            document.getElementById('ha-player-list').innerHTML = `
+                <div class="text-center py-3">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading media players...</p>
+                </div>
+            `;
             
-            // Fetch available voices for the selected provider
-            fetch(`/api/audio/voices?provider=${provider}`)
+            fetch('/api/integrations/home-assistant/media-players')
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error('Failed to fetch voices');
+                        throw new Error('Failed to load media players');
                     }
                     return response.json();
                 })
-                .then(voices => {
-                    // Sort voices by name
-                    voices.sort((a, b) => a.name.localeCompare(b.name));
-                    
-                    // Clear loading option
-                    voiceSelect.innerHTML = '';
-                    
-                    // Add a default option
-                    const defaultOption = document.createElement('option');
-                    defaultOption.value = '';
-                    defaultOption.textContent = 'Select a voice';
-                    voiceSelect.appendChild(defaultOption);
-                    
-                    // Add voice options
-                    voices.forEach(voice => {
-                        const option = document.createElement('option');
-                        option.value = voice.voice_id;
-                        
-                        // Format the display name based on available info
-                        let displayName = voice.name;
-                        if (voice.gender) {
-                            displayName += ` (${voice.gender})`;
-                        }
-                        if (voice.language) {
-                            displayName += ` - ${voice.language}`;
-                        }
-                        
-                        option.textContent = displayName;
-                        voiceSelect.appendChild(option);
-                    });
-                    
-                    // Select first voice by default if none selected
-                    if (voiceSelect.value === '' && voices.length > 0) {
-                        voiceSelect.value = voices[0].voice_id;
+                .then(players => {
+                    if (players.length === 0) {
+                        document.getElementById('ha-player-list').innerHTML = `
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle me-2"></i> No media players found in your Home Assistant instance.
+                            </div>
+                        `;
+                        return;
                     }
+                    
+                    let html = '<div class="list-group">';
+                    players.forEach(player => {
+                        // Show different styling based on player state
+                        let stateClass = 'text-muted';
+                        let stateIcon = 'fa-power-off';
+                        
+                        if (player.state === 'playing') {
+                            stateClass = 'text-success';
+                            stateIcon = 'fa-play';
+                        } else if (player.state === 'paused') {
+                            stateClass = 'text-warning';
+                            stateIcon = 'fa-pause';
+                        } else if (player.state === 'idle') {
+                            stateClass = 'text-info';
+                            stateIcon = 'fa-stop';
+                        }
+                        
+                        html += `
+                            <button class="list-group-item list-group-item-action player-select" data-entity-id="${player.entity_id}">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="fas fa-speaker me-2"></i>
+                                        <strong>${player.name}</strong>
+                                    </div>
+                                    <div class="${stateClass}">
+                                        <i class="fas ${stateIcon} me-1"></i>
+                                        ${player.state}
+                                    </div>
+                                </div>
+                            </button>
+                        `;
+                    });
+                    html += '</div>';
+                    
+                    document.getElementById('ha-player-list').innerHTML = html;
+                    
+                    // Add event handler for player selection
+                    document.querySelectorAll('.player-select').forEach(button => {
+                        button.addEventListener('click', function() {
+                            const entityId = this.getAttribute('data-entity-id');
+                            playStoryOnHomeAssistant(window.currentStoryId, entityId);
+                            bootstrap.Modal.getInstance(document.getElementById('haPlayerModal')).hide();
+                        });
+                    });
                 })
                 .catch(error => {
-                    console.error('Error fetching voices:', error);
-                    voiceSelect.innerHTML = '<option value="">Error loading voices</option>';
-                    showToast('Failed to load voices: ' + error.message, 'danger');
+                    console.error('Error loading media players:', error);
+                    document.getElementById('ha-player-list').innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i> Error loading media players: ${error.message}
+                        </div>
+                    `;
                 });
+        }
+        
+        // Play story on Home Assistant
+        function playStoryOnHomeAssistant(storyId, entityId) {
+            const data = {
+                story_id: storyId,
+                entity_id: entityId
+            };
+            
+            fetch('/api/integrations/home-assistant/play', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to play on Home Assistant');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    showToast('Story is now playing on Home Assistant', 'success');
+                    currentPlayingEntityId = entityId; // Store the entity ID
+                    isPlaying = true; // Set playing state to true
+                    updatePlayPauseButton(); // Update button state
+                    document.getElementById('player-controls').classList.remove('d-none'); // Show player controls
+                } else {
+                    showToast('Failed to play story on Home Assistant', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error playing on Home Assistant:', error);
+                showToast('Error: ' + error.message, 'danger');
+            });
+        }
+        
+        // Toggle play/pause state
+        function togglePlayPause() {
+            if (!currentPlayingEntityId) {
+                showToast('No media is currently playing', 'warning');
+                return;
+            }
+            
+            if (isPlaying) {
+                pauseMedia();
+            } else {
+                resumeMedia();
+            }
+        }
+        
+        // Pause media playback
+        function pauseMedia() {
+            if (!currentPlayingEntityId) return;
+            
+            const data = {
+                entity_id: currentPlayingEntityId
+            };
+            
+            fetch('/api/integrations/home-assistant/pause', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to pause media');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    showToast('Media paused', 'info');
+                    isPlaying = false;
+                    updatePlayPauseButton();
+                } else {
+                    showToast('Failed to pause media', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error pausing media:', error);
+                showToast('Error: ' + error.message, 'danger');
+            });
+        }
+        
+        // Resume media playback
+        function resumeMedia() {
+            if (!currentPlayingEntityId) return;
+            
+            const data = {
+                entity_id: currentPlayingEntityId
+            };
+            
+            fetch('/api/integrations/home-assistant/play_pause', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to resume media');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    showToast('Media resumed', 'info');
+                    isPlaying = true;
+                    updatePlayPauseButton();
+                } else {
+                    showToast('Failed to resume media', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error resuming media:', error);
+                showToast('Error: ' + error.message, 'danger');
+            });
+        }
+        
+        // Update the play/pause button based on current state
+        function updatePlayPauseButton() {
+            const button = document.getElementById('pause-resume-ha-btn');
+            if (isPlaying) {
+                button.innerHTML = '<i class="fas fa-pause me-1"></i> Pause';
+            } else {
+                button.innerHTML = '<i class="fas fa-play me-1"></i> Resume';
+            }
+        }
+        
+        // Close player controls and stop playback
+        document.getElementById('close-player-btn').addEventListener('click', function() {
+            if (currentPlayingEntityId) {
+                pauseMedia();
+            }
+            document.getElementById('player-controls').classList.add('d-none');
+            currentPlayingEntityId = null;
         });
         
-        // Trigger voice loading for the default selected provider
-        document.getElementById('ttsProvider').dispatchEvent(new Event('change'));
+        // Add pause/resume button functionality
+        document.getElementById('pause-resume-ha-btn').addEventListener('click', togglePlayPause);
     });
 </script>
 {% endblock %}

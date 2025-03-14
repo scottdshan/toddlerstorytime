@@ -1,6 +1,8 @@
 import os
 import logging
 import uuid
+import re
+import glob
 from typing import Optional, List, Dict, Any
 from pathlib import Path
 
@@ -30,19 +32,68 @@ class NoneProvider(TTSProvider):
         
         logger.info("Initialized None TTS Provider")
     
-    def generate_audio(self, text: str, voice_id: Optional[str] = None) -> Optional[str]:
+    def _create_friendly_filename(self, universe: str, title: str) -> str:
+        """
+        Create a user-friendly filename based on universe and title
+        
+        Args:
+            universe: The story universe
+            title: The story title
+            
+        Returns:
+            A user-friendly filename
+        """
+        # Sanitize the universe and title
+        universe = re.sub(r'[^\w\s-]', '', universe).strip().lower()
+        title = re.sub(r'[^\w\s-]', '', title).strip().lower()
+        
+        # Replace spaces with hyphens
+        universe = re.sub(r'\s+', '-', universe)
+        title = re.sub(r'\s+', '-', title)
+        
+        # Create the base filename
+        base_filename = f"{universe}-{title}"
+        
+        # Check if files with this base name already exist
+        existing_files = glob.glob(os.path.join(self.output_dir, f"{base_filename}*.mp3"))
+        
+        # If no files exist, return the base filename
+        if not existing_files:
+            return f"{base_filename}.mp3"
+        
+        # If files exist, find the highest number and increment
+        highest_num = 0
+        for file in existing_files:
+            # Extract the number if it exists
+            match = re.search(rf"{re.escape(base_filename)}-(\d+)\.mp3$", file)
+            if match:
+                num = int(match.group(1))
+                highest_num = max(highest_num, num)
+        
+        # Return the filename with the incremented number
+        return f"{base_filename}-{highest_num + 1}.mp3"
+    
+    def generate_audio(self, text: str, voice_id: Optional[str] = None, story_info: Optional[Dict[str, Any]] = None) -> Optional[str]:
         """
         Create a dummy audio path without actually generating audio
         
         Args:
             text: The text that would be converted to speech
             voice_id: Optional voice ID (not used)
+            story_info: Optional dictionary containing universe and title for the filename
             
         Returns:
             Path to a non-existent audio file
         """
-        # Create a unique filename
-        filename = f"dummy_audio_{uuid.uuid4()}.mp3"
+        # Create a user-friendly filename if story_info is provided
+        if story_info and story_info.get('universe') and story_info.get('title'):
+            filename = self._create_friendly_filename(
+                story_info.get('universe', 'unknown'), 
+                story_info.get('title', 'story')
+            )
+        else:
+            # Fallback to UUID if story_info is not provided
+            filename = f"dummy_audio_{uuid.uuid4()}.mp3"
         
         # Create the full path for the file system
         file_path = os.path.join(self.output_dir, filename)
@@ -84,15 +135,13 @@ class NoneProvider(TTSProvider):
     
     def get_service_info(self) -> Dict[str, Any]:
         """
-        Return dummy service information
+        Get information about the service
         
         Returns:
-            Dictionary with dummy service information
+            Dictionary with service information
         """
         return {
-            "service": "None TTS Provider",
-            "description": "Dummy provider that doesn't actually generate audio",
-            "remaining_characters": "Unlimited",
-            "is_free": True,
-            "status": "active"
+            "service": "None Provider",
+            "description": "A dummy provider that doesn't actually generate audio.",
+            "note": "This provider is for testing only and does not incur costs."
         } 

@@ -17,6 +17,11 @@ class PlayRequest(BaseModel):
     story_id: int
     entity_id: str
 
+class PlayAudioRequest(BaseModel):
+    audio_path: str
+    entity_id: str
+    title: Optional[str] = None
+
 class PauseRequest(BaseModel):
     entity_id: str
 
@@ -172,5 +177,45 @@ async def get_media_players():
         return players
     except Exception as e:
         logger.error(f"Error fetching media players: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/home-assistant/play-audio", response_model=Dict[str, bool])
+async def play_audio(play_request: PlayAudioRequest):
+    """Play an audio file directly on a Home Assistant media player"""
+    try:
+        if not play_request.audio_path:
+            logger.error("No audio path provided")
+            raise HTTPException(status_code=400, detail="No audio path provided")
+        
+        # Get just the filename from the audio path
+        filename = play_request.audio_path.split('/')[-1]
+        logger.info(f"Original audio path: {play_request.audio_path}")
+        logger.info(f"Extracted filename: {filename}")
+        
+        # Create the media source path
+        media_path = f"media-source://media_source/share/story/storyteller/{filename}"
+        logger.info(f"Using media source path: {media_path}")
+        
+        # Log entity ID
+        logger.info(f"Target media player entity ID: {play_request.entity_id}")
+        
+        # Send to Home Assistant
+        logger.info("Initializing Home Assistant integration")
+        ha = HomeAssistantIntegration()
+        
+        logger.info("Calling play_story method")
+        success = ha.play_story(media_path, play_request.entity_id)
+        
+        logger.info(f"Play audio result: {success}")
+        
+        if not success:
+            logger.error("Failed to play audio on Home Assistant")
+            raise HTTPException(status_code=500, detail="Failed to play audio on Home Assistant")
+        
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error playing audio on Home Assistant: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
     

@@ -95,6 +95,52 @@
             margin-top: 20px;
         }
         
+        /* Floating audio player at the bottom */
+        #floating-audio-player {
+            display: none; /* Hidden by default */
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background-color: var(--primary-color);
+            color: white;
+            padding: 10px 0;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+        
+        #floating-audio-player .container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        #floating-audio-player .audio-title {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-right: 15px;
+        }
+        
+        #floating-audio-player .audio-controls {
+            flex: 2;
+            display: flex;
+            align-items: center;
+        }
+        
+        #floating-audio-player .btn-close-player {
+            color: white;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0 15px;
+        }
+        
+        #global-audio-element {
+            width: 100%;
+        }
+        
         /* Custom animation for loading */
         @keyframes pulse {
             0% { transform: scale(1); }
@@ -145,6 +191,22 @@
         {% block content %}{% endblock %}
     </div>
     
+    <!-- Floating Audio Player -->
+    <div id="floating-audio-player">
+        <div class="container">
+            <div class="audio-title">
+                <i class="fas fa-music me-2"></i>
+                <span id="current-audio-title">Now Playing</span>
+            </div>
+            <div class="audio-controls">
+                <audio id="global-audio-element" controls></audio>
+            </div>
+            <button class="btn-close-player" onclick="closeGlobalAudioPlayer()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+    
     <!-- Footer -->
     <footer class="footer mt-5">
         <div class="container">
@@ -165,6 +227,51 @@
     
     <!-- jQuery (needed for some components) -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    
+    <!-- Global Audio Player Script -->
+    <script>
+        // Global audio player functionality
+        let globalAudioElement = document.getElementById('global-audio-element');
+        
+        // Function to play audio in the global player
+        function playAudioGlobal(audioPath, title) {
+            // Set the audio source
+            const fullAudioPath = audioPath.startsWith('/static/') ? audioPath : `/static/${audioPath}`;
+            globalAudioElement.src = fullAudioPath;
+            
+            // Set the title
+            document.getElementById('current-audio-title').textContent = title || 'Now Playing';
+            
+            // Show the player
+            document.getElementById('floating-audio-player').style.display = 'block';
+            
+            // Load and play
+            globalAudioElement.load();
+            
+            // Try to play automatically (may be blocked by browser policies)
+            globalAudioElement.addEventListener('canplaythrough', function() {
+                try {
+                    globalAudioElement.play().catch(e => console.log('Auto-play prevented: ', e));
+                } catch (e) {
+                    console.log('Error playing audio: ', e);
+                }
+            }, { once: true });
+            
+            // When audio ends, don't hide the player automatically so user can replay
+            globalAudioElement.onended = function() {
+                console.log('Audio playback complete');
+            };
+        }
+        
+        // Function to close the global audio player
+        function closeGlobalAudioPlayer() {
+            globalAudioElement.pause();
+            document.getElementById('floating-audio-player').style.display = 'none';
+        }
+        
+        // Make the function available globally for other scripts
+        window.playAudioGlobal = playAudioGlobal;
+    </script>
     
     <!-- Common JavaScript -->
     <script>

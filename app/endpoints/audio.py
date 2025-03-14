@@ -19,24 +19,22 @@ router = APIRouter()
 story_generator = StoryGenerator()
 
 @router.get("/voices")
-async def get_available_voices(provider: Optional[str] = None):
-    """
-    Get a list of available voices for the specified TTS provider
-    """
+async def get_available_voices(provider: str = "elevenlabs"):
+    """Get available voices for the specified TTS provider"""
     try:
-        # Use the specified provider or default to elevenlabs
-        provider_name = provider or "elevenlabs"
+        # Get the TTS provider
+        tts = TTSFactory.get_provider(provider)
         
-        # Create a provider instance
-        tts_provider = TTSFactory.get_provider(provider_name)
-        
-        # Get the list of available voices
-        voices = tts_provider.get_available_voices()
+        # Get available voices
+        voices = tts.get_available_voices()
         
         return voices
     except Exception as e:
-        logger.error(f"Error getting available voices: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to get available voices: {str(e)}")
+        logger.error(f"Error getting voices: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get voices: {str(e)}"
+        )
 
 @router.get("/account-info")
 async def get_account_info(provider: Optional[str] = None):

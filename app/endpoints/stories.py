@@ -49,7 +49,42 @@ async def generate_story(story_request: StoryGenRequest, db: Session = Depends(g
         # Get user preferences
         preferences = crud.get_preferences(db)
         pref_dict = None
-        if preferences:
+        
+        # If preferences don't exist yet, create them from this request
+        if not preferences:
+            try:
+                # Extract basic preferences from the request
+                new_prefs = {
+                    "child_name": story_request.child_name or "Wesley",
+                    "llm_provider": story_request.llm_provider,
+                    "voice_id": story_request.voice_id,
+                    "tts_provider": story_request.tts_provider
+                }
+                
+                # If not randomized, also save universe, setting, theme, and story length
+                if not story_request.randomize:
+                    new_prefs["favorite_universe"] = story_request.universe
+                    new_prefs["favorite_setting"] = story_request.setting
+                    new_prefs["favorite_theme"] = story_request.theme
+                    new_prefs["preferred_story_length"] = story_request.story_length
+                    
+                    # Save a favorite character (pick the first one that's not the child)
+                    if story_request.characters and len(story_request.characters) > 0:
+                        for char in story_request.characters:
+                            if char.character_name != story_request.child_name:
+                                new_prefs["favorite_character"] = char.character_name
+                                break
+                
+                # Save the new preferences
+                logger.info(f"Creating initial preferences from story request: {new_prefs}")
+                preferences = crud.save_preferences(db, new_prefs)
+                
+                # Set the preferences for this request
+                pref_dict = new_prefs
+                
+            except Exception as prefs_err:
+                logger.warning(f"Failed to create initial preferences: {str(prefs_err)}")
+        else:
             pref_dict = {
                 "child_name": preferences.child_name,
                 "favorite_universe": preferences.favorite_universe,
@@ -267,13 +302,26 @@ async def save_preferences(preferences: StoryPreferencesCreate, db: Session = De
     Save user preferences for story generation
     """
     try:
-        db_preferences = crud.save_preferences(db, preferences.dict())
+        # Convert to dict with empty strings converted to None
+        prefs_dict = preferences.dict()
+        for key, value in prefs_dict.items():
+            if value == "":
+                prefs_dict[key] = None
+                
+        # Save the preferences
+        db_preferences = crud.save_preferences(db, prefs_dict)
         return db_preferences
     except Exception as e:
-        logger.error(f"Error saving preferences: {str(e)}", exc_info=True)
+        error_msg = str(e)
+        logger.error(f"Error saving preferences: {error_msg}", exc_info=True)
+        
+        # Check for common SQLite errors related to missing columns
+        if "no such column" in error_msg.lower():
+            error_msg = "Database schema needs to be updated. Please run the migration script."
+            
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to save preferences: {str(e)}"
+            detail=f"Failed to save preferences: {error_msg}"
         )
 
 @router.get("/preferences", response_model=StoryPreferences)
@@ -294,10 +342,16 @@ async def get_preferences(db: Session = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error retrieving preferences: {str(e)}", exc_info=True)
+        error_msg = str(e)
+        logger.error(f"Error retrieving preferences: {error_msg}", exc_info=True)
+        
+        # Check for common SQLite errors related to missing columns
+        if "no such column" in error_msg.lower():
+            error_msg = "Database schema needs to be updated. Please run the migration script."
+            
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve preferences: {str(e)}"
+            detail=f"Failed to retrieve preferences: {error_msg}"
         )
 
 @router.delete("/{story_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -335,4 +389,19 @@ async def delete_story(story_id: str, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete story: {str(e)}"
+        )
+
+@router.get("/config/settings")
+async def get_story_settings():
+    """
+    Get story settings from config
+    """
+    try:
+        from app.config import STORY_SETTINGS
+        return STORY_SETTINGS
+    except Exception as e:
+        logger.error(f"Error retrieving story settings: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve story settings: {str(e)}"
         )

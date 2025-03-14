@@ -252,8 +252,22 @@ class StoryGenerator:
             # This ensures we use the currently selected provider, not the one from initialization
             tts_provider = TTSFactory.get_provider(tts_provider_name, voice_id)
             
+            # Extract title from story text (assuming first line is the title)
+            story_lines = story.story_text.split('\n')
+            title = story_lines[0].replace('#', '').strip()
+            
+            # Prepare story info for the filename
+            story_info = {
+                'universe': story.universe,
+                'title': title
+            }
+            
             # Generate audio using TTS provider
-            audio_path = tts_provider.generate_audio(str(story.story_text), voice_id=voice_id)
+            audio_path = tts_provider.generate_audio(
+                str(story.story_text), 
+                voice_id=voice_id,
+                story_info=story_info
+            )
             
             # Update story with audio path in database - remove /static/ prefix for storage
             if audio_path:
