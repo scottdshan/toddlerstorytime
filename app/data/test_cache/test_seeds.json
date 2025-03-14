@@ -1,0 +1,374 @@
+{
+  "Friendship_Beach": [
+    {
+      "problem": "Friends get lost together and help each other find their way while rescuing a toy that floated away in the water",
+      "activity": "rescuing a toy that floated away in the water",
+      "emotion": "happy",
+      "resolution": "teamwork"
+    },
+    {
+      "problem": "Character and friend have a disagreement but learn to compromise while playing in the gentle waves",
+      "activity": "playing in the gentle waves",
+      "emotion": "happy",
+      "resolution": "teamwork"
+    },
+    {
+      "problem": "building a sandcastle together becomes challenging when friends work together to build something amazing",
+      "activity": "building a sandcastle together",
+      "emotion": "confused",
+      "resolution": "thinking creatively"
+    },
+    {
+      "problem": "making footprints in the wet sand becomes challenging when character and friend have a disagreement but learn to compromise",
+      "activity": "making footprints in the wet sand",
+      "emotion": "proud",
+      "resolution": "being patient"
+    },
+    {
+      "problem": "While digging a hole to find water, character learns about friendship",
+      "activity": "digging a hole to find water",
+      "emotion": "thoughtful",
+      "resolution": "sharing with others"
+    },
+    {
+      "problem": "While helping apply sunscreen to hard-to-reach spots, character learns about friendship",
+      "activity": "helping apply sunscreen to hard-to-reach spots",
+      "emotion": "thoughtful",
+      "resolution": "making a new friend"
+    },
+    {
+      "problem": "While flying a kite in the beach breeze, character learns about friendship",
+      "activity": "flying a kite in the beach breeze",
+      "emotion": "calm",
+      "resolution": "sharing with others"
+    },
+    {
+      "problem": "having a picnic on a beach towel becomes challenging when friends take turns choosing what game to play",
+      "activity": "having a picnic on a beach towel",
+      "emotion": "unsure",
+      "resolution": "asking for help"
+    },
+    {
+      "problem": "While making footprints in the wet sand, character learns about friendship",
+      "activity": "making footprints in the wet sand",
+      "emotion": "amazed",
+      "resolution": "sharing with others"
+    },
+    {
+      "problem": "While sharing beach toys with others, character learns about friendship",
+      "activity": "sharing beach toys with others",
+      "emotion": "amazed",
+      "resolution": "making a new friend"
+    }
+  ],
+  "Friendship_Playground": [
+    {
+      "problem": "Friends work together to build something amazing while sharing playground toys",
+      "activity": "sharing playground toys",
+      "emotion": "nervous",
+      "resolution": "creativity"
+    },
+    {
+      "problem": "taking turns on the slide becomes challenging when character feels left out when friends play together without them",
+      "activity": "taking turns on the slide",
+      "emotion": "proud",
+      "resolution": "asking for help"
+    },
+    {
+      "problem": "Character learns to share their favorite toy with a friend while playing in the sandbox",
+      "activity": "playing in the sandbox",
+      "emotion": "curious",
+      "resolution": "teamwork"
+    },
+    {
+      "problem": "finding a lost toy in the playground becomes challenging when friends take turns choosing what game to play",
+      "activity": "finding a lost toy in the playground",
+      "emotion": "proud",
+      "resolution": "thinking creatively"
+    },
+    {
+      "problem": "Character teaches a new skill to a friend who's struggling while teaching someone how to use monkey bars",
+      "activity": "teaching someone how to use monkey bars",
+      "emotion": "excited",
+      "resolution": "kindness"
+    },
+    {
+      "problem": "pushing someone on the swings becomes challenging when two characters who initially don't get along find common ground",
+      "activity": "pushing someone on the swings",
+      "emotion": "determined",
+      "resolution": "thinking creatively"
+    },
+    {
+      "problem": "Character makes a new friend who is very different from them while teaching someone how to use monkey bars",
+      "activity": "teaching someone how to use monkey bars",
+      "emotion": "worried",
+      "resolution": "bravery"
+    },
+    {
+      "problem": "waiting in line for the popular equipment becomes challenging when character learns that friends can have different opinions and still be friends",
+      "activity": "waiting in line for the popular equipment",
+      "emotion": "determined",
+      "resolution": "thinking creatively"
+    },
+    {
+      "problem": "While helping someone who's stuck on equipment, character learns about friendship",
+      "activity": "helping someone who's stuck on equipment",
+      "emotion": "thoughtful",
+      "resolution": "sharing with others"
+    },
+    {
+      "problem": "While waiting in line for the popular equipment, character learns about friendship",
+      "activity": "waiting in line for the popular equipment",
+      "emotion": "joyful",
+      "resolution": "solving a problem"
+    }
+  ],
+  "Helping Others_Beach": [
+    {
+      "problem": "Character helps find something important that was lost while making footprints in the wet sand",
+      "activity": "making footprints in the wet sand",
+      "emotion": "curious",
+      "resolution": "teamwork"
+    },
+    {
+      "problem": "Character helps translate for someone who speaks a different language while having a picnic on a beach towel",
+      "activity": "having a picnic on a beach towel",
+      "emotion": "happy",
+      "resolution": "creativity"
+    },
+    {
+      "problem": "Character rescues a small animal stuck in a tree while digging a hole to find water",
+      "activity": "digging a hole to find water",
+      "emotion": "worried",
+      "resolution": "creativity"
+    },
+    {
+      "problem": "sharing beach toys with others becomes challenging when character shares their umbrella during a rainstorm",
+      "activity": "sharing beach toys with others",
+      "emotion": "unsure",
+      "resolution": "asking for help"
+    },
+    {
+      "problem": "While helping apply sunscreen to hard-to-reach spots, character learns about helping others",
+      "activity": "helping apply sunscreen to hard-to-reach spots",
+      "emotion": "amazed",
+      "resolution": "learning something new"
+    },
+    {
+      "problem": "While building a sandcastle together, character learns about helping others",
+      "activity": "building a sandcastle together",
+      "emotion": "energetic",
+      "resolution": "solving a problem"
+    },
+    {
+      "problem": "Character teaches a younger child how to tie their shoes while sharing beach toys with others",
+      "activity": "sharing beach toys with others",
+      "emotion": "worried",
+      "resolution": "creativity"
+    },
+    {
+      "problem": "Character shares their umbrella during a rainstorm while collecting seashells along the shore",
+      "activity": "collecting seashells along the shore",
+      "emotion": "nervous",
+      "resolution": "bravery"
+    },
+    {
+      "problem": "collecting seashells along the shore becomes challenging when character helps someone who fell and hurt themselves",
+      "activity": "collecting seashells along the shore",
+      "emotion": "confused",
+      "resolution": "being patient"
+    },
+    {
+      "problem": "Character builds a ramp for someone who can't use stairs while digging a hole to find water",
+      "activity": "digging a hole to find water",
+      "emotion": "curious",
+      "resolution": "bravery"
+    }
+  ],
+  "Helping Others_Playground": [
+    {
+      "problem": "Character shares their umbrella during a rainstorm while resolving an argument over who goes next",
+      "activity": "resolving an argument over who goes next",
+      "emotion": "worried",
+      "resolution": "bravery"
+    },
+    {
+      "problem": "finding a lost toy in the playground becomes challenging when character shares their umbrella during a rainstorm",
+      "activity": "finding a lost toy in the playground",
+      "emotion": "unsure",
+      "resolution": "being patient"
+    },
+    {
+      "problem": "Character shares their umbrella during a rainstorm while resolving an argument over who goes next",
+      "activity": "resolving an argument over who goes next",
+      "emotion": "happy",
+      "resolution": "creativity"
+    },
+    {
+      "problem": "resolving an argument over who goes next becomes challenging when character helps translate for someone who speaks a different language",
+      "activity": "resolving an argument over who goes next",
+      "emotion": "confused",
+      "resolution": "trying again"
+    },
+    {
+      "problem": "While pushing someone on the swings, character learns about helping others",
+      "activity": "pushing someone on the swings",
+      "emotion": "energetic",
+      "resolution": "making a new friend"
+    },
+    {
+      "problem": "While finding a lost toy in the playground, character learns about helping others",
+      "activity": "finding a lost toy in the playground",
+      "emotion": "amazed",
+      "resolution": "learning something new"
+    },
+    {
+      "problem": "Character helps clean up a mess they didn't make while helping a younger child navigate equipment",
+      "activity": "helping a younger child navigate equipment",
+      "emotion": "excited",
+      "resolution": "creativity"
+    },
+    {
+      "problem": "Character notices someone is sad and cheers them up while helping a younger child navigate equipment",
+      "activity": "helping a younger child navigate equipment",
+      "emotion": "excited",
+      "resolution": "bravery"
+    },
+    {
+      "problem": "Character helps find something important that was lost while climbing the jungle gym together",
+      "activity": "climbing the jungle gym together",
+      "emotion": "curious",
+      "resolution": "kindness"
+    },
+    {
+      "problem": "While waiting in line for the popular equipment, character learns about helping others",
+      "activity": "waiting in line for the popular equipment",
+      "emotion": "thoughtful",
+      "resolution": "learning something new"
+    }
+  ],
+  "Trying New Things_Beach": [
+    {
+      "problem": "Character is scared of swimming but tries it anyway while rescuing a toy that floated away in the water",
+      "activity": "rescuing a toy that floated away in the water",
+      "emotion": "curious",
+      "resolution": "kindness"
+    },
+    {
+      "problem": "While looking for crabs in tide pools, character learns about trying new things",
+      "activity": "looking for crabs in tide pools",
+      "emotion": "thoughtful",
+      "resolution": "sharing with others"
+    },
+    {
+      "problem": "Character tries a musical instrument for the first time while having a picnic on a beach towel",
+      "activity": "having a picnic on a beach towel",
+      "emotion": "nervous",
+      "resolution": "bravery"
+    },
+    {
+      "problem": "While helping apply sunscreen to hard-to-reach spots, character learns about trying new things",
+      "activity": "helping apply sunscreen to hard-to-reach spots",
+      "emotion": "calm",
+      "resolution": "helping someone"
+    },
+    {
+      "problem": "While helping apply sunscreen to hard-to-reach spots, character learns about trying new things",
+      "activity": "helping apply sunscreen to hard-to-reach spots",
+      "emotion": "thoughtful",
+      "resolution": "sharing with others"
+    },
+    {
+      "problem": "cleaning up litter from the beach becomes challenging when character is scared of swimming but tries it anyway",
+      "activity": "cleaning up litter from the beach",
+      "emotion": "confused",
+      "resolution": "asking for help"
+    },
+    {
+      "problem": "While flying a kite in the beach breeze, character learns about trying new things",
+      "activity": "flying a kite in the beach breeze",
+      "emotion": "amazed",
+      "resolution": "sharing with others"
+    },
+    {
+      "problem": "While helping apply sunscreen to hard-to-reach spots, character learns about trying new things",
+      "activity": "helping apply sunscreen to hard-to-reach spots",
+      "emotion": "calm",
+      "resolution": "making a new friend"
+    },
+    {
+      "problem": "Character tries speaking in front of a group despite being nervous while collecting seashells along the shore",
+      "activity": "collecting seashells along the shore",
+      "emotion": "curious",
+      "resolution": "teamwork"
+    },
+    {
+      "problem": "While cleaning up litter from the beach, character learns about trying new things",
+      "activity": "cleaning up litter from the beach",
+      "emotion": "amazed",
+      "resolution": "making a new friend"
+    }
+  ],
+  "Trying New Things_Playground": [
+    {
+      "problem": "helping a younger child navigate equipment becomes challenging when character tries a new food they thought they wouldn't like",
+      "activity": "helping a younger child navigate equipment",
+      "emotion": "proud",
+      "resolution": "trying again"
+    },
+    {
+      "problem": "playing in the sandbox becomes challenging when character tries a challenging puzzle that looks too hard",
+      "activity": "playing in the sandbox",
+      "emotion": "determined",
+      "resolution": "asking for help"
+    },
+    {
+      "problem": "pushing someone on the swings becomes challenging when character tries a new sport or activity they've never done before",
+      "activity": "pushing someone on the swings",
+      "emotion": "determined",
+      "resolution": "working together"
+    },
+    {
+      "problem": "teaching someone how to use monkey bars becomes challenging when character tries a challenging puzzle that looks too hard",
+      "activity": "teaching someone how to use monkey bars",
+      "emotion": "confused",
+      "resolution": "working together"
+    },
+    {
+      "problem": "While climbing the jungle gym together, character learns about trying new things",
+      "activity": "climbing the jungle gym together",
+      "emotion": "thoughtful",
+      "resolution": "helping someone"
+    },
+    {
+      "problem": "While helping a younger child navigate equipment, character learns about trying new things",
+      "activity": "helping a younger child navigate equipment",
+      "emotion": "thoughtful",
+      "resolution": "sharing with others"
+    },
+    {
+      "problem": "helping a younger child navigate equipment becomes challenging when character learns to ride a bike despite being afraid of falling",
+      "activity": "helping a younger child navigate equipment",
+      "emotion": "surprised",
+      "resolution": "thinking creatively"
+    },
+    {
+      "problem": "While teaching someone how to use monkey bars, character learns about trying new things",
+      "activity": "teaching someone how to use monkey bars",
+      "emotion": "amazed",
+      "resolution": "helping someone"
+    },
+    {
+      "problem": "Character tries a challenging puzzle that looks too hard while teaching someone how to use monkey bars",
+      "activity": "teaching someone how to use monkey bars",
+      "emotion": "happy",
+      "resolution": "teamwork"
+    },
+    {
+      "problem": "Character makes a new recipe for the first time while waiting in line for the popular equipment",
+      "activity": "waiting in line for the popular equipment",
+      "emotion": "worried",
+      "resolution": "bravery"
+    }
+  ]
+}

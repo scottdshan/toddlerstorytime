@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}API Debugger{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>API Debugger</h1>
+    <div class="card">
+        <div class="card-header">
+            Story Generation Tester
+        </div>
+        <div class="card-body">
+            <form id="storyForm">
+                <div class="form-group mb-3">
+                    <label for="universe">Universe</label>
+                    <select class="form-control" id="universe" name="universe">
+                        <option value="Paw Patrol">Paw Patrol</option>
+                        <option value="Disney Princess">Disney Princess</option>
+                        <option value="PJ Masks">PJ Masks</option>
+                        <option value="Bluey">Bluey</option>
+                        <option value="Peppa Pig">Peppa Pig</option>
+                        <option value="Cocomelon">Cocomelon</option>
+                        <option value="Toy Story">Toy Story</option>
+                        <option value="Mickey Mouse Clubhouse">Mickey Mouse Clubhouse</option>
+                        <option value="Sesame Street">Sesame Street</option>
+                        <option value="Original Fantasy World">Original Fantasy World</option>
+                    </select>
+                </div>
+                <div class="form-group mb-3">
+                    <label for="setting">Setting</label>
+                    <select class="form-control" id="setting" name="setting">
+                        <option value="Bedtime">Bedtime</option>
+                        <option value="Playground">Playground</option>
+                        <option value="Beach">Beach</option>
+                        <option value="Zoo">Zoo</option>
+                        <option value="Farm">Farm</option>
+                        <option value="Space">Space</option>
+                        <option value="Underwater">Underwater</option>
+                        <option value="Forest">Forest</option>
+                        <option value="Jungle">Jungle</option>
+                        <option value="Mountains">Mountains</option>
+                    </select>
+                </div>
+                <div class="form-group mb-3">
+                    <label for="theme">Theme</label>
+                    <select class="form-control" id="theme" name="theme">
+                        <option value="Friendship">Friendship</option>
+                        <option value="Helping Others">Helping Others</option>
+                        <option value="Trying New Things">Trying New Things</option>
+                        <option value="Facing Fears">Facing Fears</option>
+                        <option value="Being Kind">Being Kind</option>
+                        <option value="Learning New Skills">Learning New Skills</option>
+                        <option value="Listening to Parents">Listening to Parents</option>
+                        <option value="Sharing">Sharing</option>
+                    </select>
+                </div>
+                <div class="form-group mb-3">
+                    <label for="storyLength">Story Length</label>
+                    <select class="form-control" id="storyLength" name="story_length">
+                        <option value="Very Short (2-3 minutes)">Very Short (2-3 minutes)</option>
+                        <option value="Short (3-5 minutes)">Short (3-5 minutes)</option>
+                        <option value="Medium (5-7 minutes)">Medium (5-7 minutes)</option>
+                        <option value="Long (7-10 minutes)">Long (7-10 minutes)</option>
+                    </select>
+                </div>
+                <div class="form-group mb-3">
+                    <label for="characters">Characters (comma-separated)</label>
+                    <input type="text" class="form-control" id="characters" name="characters" value="Chase, Marshall, Skye" placeholder="Enter characters">
+                    <small class="form-text text-muted">Enter character names separated by commas</small>
+                </div>
+                <div class="form-group mb-3">
+                    <label for="childName">Child's Name</label>
+                    <input type="text" class="form-control" id="childName" name="child_name" value="Wesley">
+                </div>
+                <div class="form-group mb-3">
+                    <label for="llmProvider">LLM Provider</label>
+                    <select class="form-control" id="llmProvider" name="llm_provider">
+                        <option value="openai">OpenAI</option>
+                        <option value="azure">Azure OpenAI</option>
+                        <option value="claude">Claude/Anthropic</option>
+                    </select>
+                </div>
+                <div class="form-check mb-3">
+                    <input type="checkbox" class="form-check-input" id="randomize" name="randomize">
+                    <label class="form-check-label" for="randomize">Randomize</label>
+                </div>
+                <button type="submit" class="btn btn-primary">Generate Story</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card mt-4">
+        <div class="card-header">
+            API Response
+        </div>
+        <div class="card-body">
+            <pre id="responseOutput" class="bg-light p-3">No response yet</pre>
+        </div>
+    </div>
+
+    <div class="card mt-4">
+        <div class="card-header">
+            Request Payload
+        </div>
+        <div class="card-body">
+            <pre id="requestOutput" class="bg-light p-3">No request yet</pre>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('storyForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    // Get form data
+    const formData = new FormData(this);
+    const jsonData = {};
+    
+    // Convert form data to JSON
+    for (const [key, value] of formData.entries()) {
+        if (key === 'randomize') {
+            jsonData[key] = true;
+        } else if (key === 'characters') {
+            jsonData[key] = value.split(',').map(char => ({ character_name: char.trim() }));
+        } else {
+            jsonData[key] = value;
+        }
+    }
+    
+    // Display the request
+    document.getElementById('requestOutput').textContent = JSON.stringify(jsonData, null, 2);
+    
+    try {
+        // Make the API request
+        const response = await fetch('/api/stories/generate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(jsonData),
+        });
+        
+        // Parse response
+        const data = await response.json();
+        
+        // Display the response
+        document.getElementById('responseOutput').textContent = JSON.stringify(data, null, 2);
+        
+        // Highlight based on success/error
+        if (response.ok) {
+            document.getElementById('responseOutput').classList.add('text-success');
+            document.getElementById('responseOutput').classList.remove('text-danger');
+        } else {
+            document.getElementById('responseOutput').classList.add('text-danger');
+            document.getElementById('responseOutput').classList.remove('text-success');
+        }
+    } catch (error) {
+        document.getElementById('responseOutput').textContent = 'Error: ' + error.message;
+        document.getElementById('responseOutput').classList.add('text-danger');
+    }
+});
+</script>
+{% endblock %} 
