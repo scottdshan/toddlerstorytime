@@ -1,0 +1,1056 @@
+{
+  "Friendship_Bedtime": [
+    {
+      "problem": "playing together becomes challenging when two characters who initially don't get along find common ground",
+      "activity": "playing together",
+      "emotion": "unsure",
+      "resolution": "working together"
+    },
+    {
+      "problem": "Character and friend have a disagreement but learn to compromise while helping each other",
+      "activity": "helping each other",
+      "emotion": "nervous",
+      "resolution": "creativity"
+    },
+    {
+      "problem": "While playing together, character learns about friendship",
+      "activity": "playing together",
+      "emotion": "joyful",
+      "resolution": "sharing with others"
+    },
+    {
+      "problem": "exploring together becomes challenging when character learns to share their favorite toy with a friend",
+      "activity": "exploring together",
+      "emotion": "unsure",
+      "resolution": "asking for help"
+    },
+    {
+      "problem": "discovering something new becomes challenging when character teaches a new skill to a friend who's struggling",
+      "activity": "discovering something new",
+      "emotion": "confused",
+      "resolution": "trying again"
+    },
+    {
+      "problem": "discovering something new becomes challenging when character teaches a new skill to a friend who's struggling",
+      "activity": "discovering something new",
+      "emotion": "determined",
+      "resolution": "working together"
+    },
+    {
+      "problem": "While helping each other, character learns about friendship",
+      "activity": "helping each other",
+      "emotion": "energetic",
+      "resolution": "making a new friend"
+    },
+    {
+      "problem": "Character stands up for a friend who's being teased while discovering something new",
+      "activity": "discovering something new",
+      "emotion": "excited",
+      "resolution": "bravery"
+    },
+    {
+      "problem": "Character stands up for a friend who's being teased while helping each other",
+      "activity": "helping each other",
+      "emotion": "excited",
+      "resolution": "creativity"
+    },
+    {
+      "problem": "While playing together, character learns about friendship",
+      "activity": "playing together",
+      "emotion": "energetic",
+      "resolution": "solving a problem"
+    }
+  ],
+  "Being Brave_Space": [
+    {
+      "problem": "Character enters a dark room to retrieve a toy while discovering something new",
+      "activity": "discovering something new",
+      "emotion": "happy",
+      "resolution": "kindness"
+    },
+    {
+      "problem": "While helping each other, character learns about being brave",
+      "activity": "helping each other",
+      "emotion": "thoughtful",
+      "resolution": "learning something new"
+    },
+    {
+      "problem": "While discovering something new, character learns about being brave",
+      "activity": "discovering something new",
+      "emotion": "amazed",
+      "resolution": "learning something new"
+    },
+    {
+      "problem": "Character speaks in front of the class for the first time while playing together",
+      "activity": "playing together",
+      "emotion": "happy",
+      "resolution": "kindness"
+    },
+    {
+      "problem": "helping each other becomes challenging when character approaches new children to make friends",
+      "activity": "helping each other",
+      "emotion": "unsure",
+      "resolution": "being patient"
+    },
+    {
+      "problem": "playing together becomes challenging when character tries a new food that looks strange",
+      "activity": "playing together",
+      "emotion": "determined",
+      "resolution": "asking for help"
+    },
+    {
+      "problem": "discovering something new becomes challenging when character stands up to someone who's being unkind",
+      "activity": "discovering something new",
+      "emotion": "determined",
+      "resolution": "asking for help"
+    },
+    {
+      "problem": "helping each other becomes challenging when character enters a dark room to retrieve a toy",
+      "activity": "helping each other",
+      "emotion": "confused",
+      "resolution": "trying again"
+    },
+    {
+      "problem": "While discovering something new, character learns about being brave",
+      "activity": "discovering something new",
+      "emotion": "thoughtful",
+      "resolution": "helping someone"
+    },
+    {
+      "problem": "While helping each other, character learns about being brave",
+      "activity": "helping each other",
+      "emotion": "amazed",
+      "resolution": "sharing with others"
+    }
+  ],
+  "Helping Others_Playground": [
+    {
+      "problem": "While helping a younger child navigate equipment, character learns about helping others",
+      "activity": "helping a younger child navigate equipment",
+      "emotion": "amazed",
+      "resolution": "sharing with others"
+    },
+    {
+      "problem": "While inviting someone to join a game, character learns about helping others",
+      "activity": "inviting someone to join a game",
+      "emotion": "amazed",
+      "resolution": "sharing with others"
+    },
+    {
+      "problem": "While playing in the sandbox, character learns about helping others",
+      "activity": "playing in the sandbox",
+      "emotion": "calm",
+      "resolution": "solving a problem"
+    },
+    {
+      "problem": "While pushing someone on the swings, character learns about helping others",
+      "activity": "pushing someone on the swings",
+      "emotion": "calm",
+      "resolution": "helping someone"
+    },
+    {
+      "problem": "helping someone who fell down becomes challenging when character teaches a younger child how to tie their shoes",
+      "activity": "helping someone who fell down",
+      "emotion": "proud",
+      "resolution": "thinking creatively"
+    },
+    {
+      "problem": "Character makes a card for someone who's sick while sharing playground toys",
+      "activity": "sharing playground toys",
+      "emotion": "happy",
+      "resolution": "bravery"
+    },
+    {
+      "problem": "cleaning up trash on the playground becomes challenging when character helps someone who fell and hurt themselves",
+      "activity": "cleaning up trash on the playground",
+      "emotion": "surprised",
+      "resolution": "trying again"
+    },
+    {
+      "problem": "waiting in line for the popular equipment becomes challenging when character helps someone who fell and hurt themselves",
+      "activity": "waiting in line for the popular equipment",
+      "emotion": "determined",
+      "resolution": "working together"
+    },
+    {
+      "problem": "cleaning up trash on the playground becomes challenging when character teaches a younger child how to tie their shoes",
+      "activity": "cleaning up trash on the playground",
+      "emotion": "proud",
+      "resolution": "thinking creatively"
+    },
+    {
+      "problem": "Character helps translate for someone who speaks a different language while inviting someone to join a game",
+      "activity": "inviting someone to join a game",
+      "emotion": "nervous",
+      "resolution": "kindness"
+    }
+  ],
+  "Helping Others_Bedtime": [
+    {
+      "problem": "discovering something new becomes challenging when character notices someone is sad and cheers them up",
+      "activity": "discovering something new",
+      "emotion": "proud",
+      "resolution": "working together"
+    },
+    {
+      "problem": "While playing together, character learns about helping others",
+      "activity": "playing together",
+      "emotion": "calm",
+      "resolution": "helping someone"
+    },
+    {
+      "problem": "Character rescues a toy that floated away in water while playing together",
+      "activity": "playing together",
+      "emotion": "excited",
+      "resolution": "bravery"
+    },
+    {
+      "problem": "Character notices someone forgot their lunch and shares theirs while helping each other",
+      "activity": "helping each other",
+      "emotion": "excited",
+      "resolution": "kindness"
+    },
+    {
+      "problem": "discovering something new becomes challenging when character helps translate for someone who speaks a different language",
+      "activity": "discovering something new",
+      "emotion": "determined",
+      "resolution": "working together"
+    },
+    {
+      "problem": "While exploring together, character learns about helping others",
+      "activity": "exploring together",
+      "emotion": "calm",
+      "resolution": "making a new friend"
+    },
+    {
+      "problem": "helping each other becomes challenging when character helps someone who fell and hurt themselves",
+      "activity": "helping each other",
+      "emotion": "determined",
+      "resolution": "being patient"
+    },
+    {
+      "problem": "While discovering something new, character learns about helping others",
+      "activity": "discovering something new",
+      "emotion": "thoughtful",
+      "resolution": "helping someone"
+    },
+    {
+      "problem": "discovering something new becomes challenging when character shares their umbrella during a rainstorm",
+      "activity": "discovering something new",
+      "emotion": "surprised",
+      "resolution": "trying again"
+    },
+    {
+      "problem": "Character helps clean up a mess they didn't make while playing together",
+      "activity": "playing together",
+      "emotion": "nervous",
+      "resolution": "perseverance"
+    }
+  ],
+  "Friendship_Playground": [
+    {
+      "problem": "Character misses a faraway friend and finds a way to connect while sharing playground toys",
+      "activity": "sharing playground toys",
+      "emotion": "happy",
+      "resolution": "teamwork"
+    },
+    {
+      "problem": "sharing playground toys becomes challenging when two characters who initially don't get along find common ground",
+      "activity": "sharing playground toys",
+      "emotion": "surprised",
+      "resolution": "thinking creatively"
+    },
+    {
+      "problem": "Friends get lost together and help each other find their way while helping a younger child navigate equipment",
+      "activity": "helping a younger child navigate equipment",
+      "emotion": "worried",
+      "resolution": "kindness"
+    },
+    {
+      "problem": "helping someone who's stuck on equipment becomes challenging when character teaches a new skill to a friend who's struggling",
+      "activity": "helping someone who's stuck on equipment",
+      "emotion": "unsure",
+      "resolution": "working together"
+    },
+    {
+      "problem": "sharing playground toys becomes challenging when character teaches a new skill to a friend who's struggling",
+      "activity": "sharing playground toys",
+      "emotion": "confused",
+      "resolution": "thinking creatively"
+    },
+    {
+      "problem": "While helping someone who's stuck on equipment, character learns about friendship",
+      "activity": "helping someone who's stuck on equipment",
+      "emotion": "thoughtful",
+      "resolution": "sharing with others"
+    },
+    {
+      "problem": "inviting someone to join a game becomes challenging when character learns that friends can have different opinions and still be friends",
+      "activity": "inviting someone to join a game",
+      "emotion": "proud",
+      "resolution": "thinking creatively"
+    },
+    {
+      "problem": "While finding a lost toy in the playground, character learns about friendship",
+      "activity": "finding a lost toy in the playground",
+      "emotion": "amazed",
+      "resolution": "helping someone"
+    },
+    {
+      "problem": "Character feels jealous of friend's new toy but learns to be happy for them while playing in the sandbox",
+      "activity": "playing in the sandbox",
+      "emotion": "happy",
+      "resolution": "kindness"
+    },
+    {
+      "problem": "taking turns on the slide becomes challenging when friends get lost together and help each other find their way",
+      "activity": "taking turns on the slide",
+      "emotion": "unsure",
+      "resolution": "thinking creatively"
+    }
+  ],
+  "Trying New Things_Playground": [
+    {
+      "problem": "Character tries a new sport or activity they've never done before while pushing someone on the swings",
+      "activity": "pushing someone on the swings",
+      "emotion": "worried",
+      "resolution": "creativity"
+    },
+    {
+      "problem": "waiting in line for the popular equipment becomes challenging when character creates art using a new technique they've never tried",
+      "activity": "waiting in line for the popular equipment",
+      "emotion": "confused",
+      "resolution": "asking for help"
+    },
+    {
+      "problem": "Character tries a challenging puzzle that looks too hard while waiting in line for the popular equipment",
+      "activity": "waiting in line for the popular equipment",
+      "emotion": "curious",
+      "resolution": "bravery"
+    },
+    {
+      "problem": "sharing playground toys becomes challenging when character learns to ride a bike despite being afraid of falling",
+      "activity": "sharing playground toys",
+      "emotion": "proud",
+      "resolution": "trying again"
+    },
+    {
+      "problem": "While inviting someone to join a game, character learns about trying new things",
+      "activity": "inviting someone to join a game",
+      "emotion": "energetic",
+      "resolution": "making a new friend"
+    },
+    {
+      "problem": "Character is scared of swimming but tries it anyway while cleaning up trash on the playground",
+      "activity": "cleaning up trash on the playground",
+      "emotion": "excited",
+      "resolution": "perseverance"
+    },
+    {
+      "problem": "helping someone who fell down becomes challenging when character tries camping outdoors for the first time",
+      "activity": "helping someone who fell down",
+      "emotion": "determined",
+      "resolution": "asking for help"
+    },
+    {
+      "problem": "Character tries a new sport or activity they've never done before while inviting someone to join a game",
+      "activity": "inviting someone to join a game",
+      "emotion": "worried",
+      "resolution": "creativity"
+    },
+    {
+      "problem": "Character tries camping outdoors for the first time while playing in the sandbox",
+      "activity": "playing in the sandbox",
+      "emotion": "nervous",
+      "resolution": "bravery"
+    },
+    {
+      "problem": "resolving an argument over who goes next becomes challenging when character tries camping outdoors for the first time",
+      "activity": "resolving an argument over who goes next",
+      "emotion": "determined",
+      "resolution": "asking for help"
+    }
+  ],
+  "Apologizing_Mountains": [
+    {
+      "problem": "helping each other becomes challenging when character apologizes even when it was an accident",
+      "activity": "helping each other",
+      "emotion": "unsure",
+      "resolution": "being patient"
+    },
+    {
+      "problem": "While playing together, character learns about apologizing",
+      "activity": "playing together",
+      "emotion": "calm",
+      "resolution": "helping someone"
+    },
+    {
+      "problem": "While playing together, character learns about apologizing",
+      "activity": "playing together",
+      "emotion": "amazed",
+      "resolution": "helping someone"
+    },
+    {
+      "problem": "While playing together, character learns about apologizing",
+      "activity": "playing together",
+      "emotion": "joyful",
+      "resolution": "making a new friend"
+    },
+    {
+      "problem": "While exploring together, character learns about apologizing",
+      "activity": "exploring together",
+      "emotion": "calm",
+      "resolution": "making a new friend"
+    },
+    {
+      "problem": "playing together becomes challenging when character apologizes even when it was an accident",
+      "activity": "playing together",
+      "emotion": "unsure",
+      "resolution": "being patient"
+    },
+    {
+      "problem": "Character accidentally ruins something someone else made while helping each other",
+      "activity": "helping each other",
+      "emotion": "happy",
+      "resolution": "kindness"
+    },
+    {
+      "problem": "discovering something new becomes challenging when character makes amends after an apology by doing something kind",
+      "activity": "discovering something new",
+      "emotion": "determined",
+      "resolution": "working together"
+    },
+    {
+      "problem": "helping each other becomes challenging when character accidentally hurts someone during play",
+      "activity": "helping each other",
+      "emotion": "confused",
+      "resolution": "working together"
+    },
+    {
+      "problem": "While helping each other, character learns about apologizing",
+      "activity": "helping each other",
+      "emotion": "joyful",
+      "resolution": "solving a problem"
+    }
+  ],
+  "Being Kind_Space": [
+    {
+      "problem": "Character makes a get-well card for someone who's sick while helping each other",
+      "activity": "helping each other",
+      "emotion": "curious",
+      "resolution": "bravery"
+    },
+    {
+      "problem": "discovering something new becomes challenging when character apologizes when they accidentally hurt someone's feelings",
+      "activity": "discovering something new",
+      "emotion": "proud",
+      "resolution": "asking for help"
+    },
+    {
+      "problem": "While helping each other, character learns about being kind",
+      "activity": "helping each other",
+      "emotion": "calm",
+      "resolution": "learning something new"
+    },
+    {
+      "problem": "While helping each other, character learns about being kind",
+      "activity": "helping each other",
+      "emotion": "joyful",
+      "resolution": "learning something new"
+    },
+    {
+      "problem": "playing together becomes challenging when character leaves a surprise gift for someone to find",
+      "activity": "playing together",
+      "emotion": "unsure",
+      "resolution": "asking for help"
+    },
+    {
+      "problem": "Character makes a welcome gift for a new neighbor while playing together",
+      "activity": "playing together",
+      "emotion": "happy",
+      "resolution": "teamwork"
+    },
+    {
+      "problem": "Character compliments others on things they do well while helping each other",
+      "activity": "helping each other",
+      "emotion": "happy",
+      "resolution": "creativity"
+    },
+    {
+      "problem": "helping each other becomes challenging when character gives up their seat for someone who needs it more",
+      "activity": "helping each other",
+      "emotion": "proud",
+      "resolution": "trying again"
+    },
+    {
+      "problem": "Character makes a get-well card for someone who's sick while helping each other",
+      "activity": "helping each other",
+      "emotion": "nervous",
+      "resolution": "kindness"
+    },
+    {
+      "problem": "helping each other becomes challenging when character takes care of someone else's pet or plant while they're away",
+      "activity": "helping each other",
+      "emotion": "surprised",
+      "resolution": "trying again"
+    }
+  ],
+  "Sharing_Underwater": [
+    {
+      "problem": "Character divides treats equally among friends while exploring together",
+      "activity": "exploring together",
+      "emotion": "excited",
+      "resolution": "bravery"
+    },
+    {
+      "problem": "While exploring together, character learns about sharing",
+      "activity": "exploring together",
+      "emotion": "amazed",
+      "resolution": "making a new friend"
+    },
+    {
+      "problem": "Character lets others use their toys at a playdate while discovering something new",
+      "activity": "discovering something new",
+      "emotion": "excited",
+      "resolution": "perseverance"
+    },
+    {
+      "problem": "Character shares their time to help someone else while playing together",
+      "activity": "playing together",
+      "emotion": "nervous",
+      "resolution": "creativity"
+    },
+    {
+      "problem": "While playing together, character learns about sharing",
+      "activity": "playing together",
+      "emotion": "joyful",
+      "resolution": "making a new friend"
+    },
+    {
+      "problem": "exploring together becomes challenging when character divides treats equally among friends",
+      "activity": "exploring together",
+      "emotion": "unsure",
+      "resolution": "working together"
+    },
+    {
+      "problem": "While playing together, character learns about sharing",
+      "activity": "playing together",
+      "emotion": "thoughtful",
+      "resolution": "solving a problem"
+    },
+    {
+      "problem": "While playing together, character learns about sharing",
+      "activity": "playing together",
+      "emotion": "thoughtful",
+      "resolution": "learning something new"
+    },
+    {
+      "problem": "Character shares their favorite toy with a friend while discovering something new",
+      "activity": "discovering something new",
+      "emotion": "worried",
+      "resolution": "bravery"
+    },
+    {
+      "problem": "While discovering something new, character learns about sharing",
+      "activity": "discovering something new",
+      "emotion": "thoughtful",
+      "resolution": "sharing with others"
+    }
+  ],
+  "Morning Routine_Rainy Day": [
+    {
+      "problem": "playing together becomes challenging when character has a special morning greeting ritual with family",
+      "activity": "playing together",
+      "emotion": "proud",
+      "resolution": "working together"
+    },
+    {
+      "problem": "While playing together, character learns about morning routine",
+      "activity": "playing together",
+      "emotion": "amazed",
+      "resolution": "solving a problem"
+    },
+    {
+      "problem": "While helping each other, character learns about morning routine",
+      "activity": "helping each other",
+      "emotion": "amazed",
+      "resolution": "sharing with others"
+    },
+    {
+      "problem": "Character prepares the night before to make morning easier while exploring together",
+      "activity": "exploring together",
+      "emotion": "excited",
+      "resolution": "perseverance"
+    },
+    {
+      "problem": "While exploring together, character learns about morning routine",
+      "activity": "exploring together",
+      "emotion": "calm",
+      "resolution": "solving a problem"
+    },
+    {
+      "problem": "While playing together, character learns about morning routine",
+      "activity": "playing together",
+      "emotion": "joyful",
+      "resolution": "making a new friend"
+    },
+    {
+      "problem": "While helping each other, character learns about morning routine",
+      "activity": "helping each other",
+      "emotion": "joyful",
+      "resolution": "helping someone"
+    },
+    {
+      "problem": "playing together becomes challenging when character remembers all the steps in morning hygiene",
+      "activity": "playing together",
+      "emotion": "proud",
+      "resolution": "being patient"
+    },
+    {
+      "problem": "While exploring together, character learns about morning routine",
+      "activity": "exploring together",
+      "emotion": "amazed",
+      "resolution": "solving a problem"
+    },
+    {
+      "problem": "helping each other becomes challenging when character gets ready efficiently to have time for play",
+      "activity": "helping each other",
+      "emotion": "confused",
+      "resolution": "asking for help"
+    }
+  ],
+  "Listening to Parents_Beach": [
+    {
+      "problem": "While playing in the gentle waves, character learns about listening to parents",
+      "activity": "playing in the gentle waves",
+      "emotion": "amazed",
+      "resolution": "sharing with others"
+    },
+    {
+      "problem": "Character wants to play longer but comes when called while watching seagulls and other beach creatures",
+      "activity": "watching seagulls and other beach creatures",
+      "emotion": "happy",
+      "resolution": "kindness"
+    },
+    {
+      "problem": "watching seagulls and other beach creatures becomes challenging when character follows directions to help with a simple task",
+      "activity": "watching seagulls and other beach creatures",
+      "emotion": "unsure",
+      "resolution": "thinking creatively"
+    },
+    {
+      "problem": "Character remembers to look both ways before crossing the street while watching seagulls and other beach creatures",
+      "activity": "watching seagulls and other beach creatures",
+      "emotion": "excited",
+      "resolution": "perseverance"
+    },
+    {
+      "problem": "While building a sandcastle together, character learns about listening to parents",
+      "activity": "building a sandcastle together",
+      "emotion": "calm",
+      "resolution": "making a new friend"
+    },
+    {
+      "problem": "Character doesn't open the door to strangers as taught while looking for crabs in tide pools",
+      "activity": "looking for crabs in tide pools",
+      "emotion": "happy",
+      "resolution": "perseverance"
+    },
+    {
+      "problem": "cleaning up litter from the beach becomes challenging when character wants to play longer but comes when called",
+      "activity": "cleaning up litter from the beach",
+      "emotion": "determined",
+      "resolution": "asking for help"
+    },
+    {
+      "problem": "While waiting patiently for turns on a boogie board, character learns about listening to parents",
+      "activity": "waiting patiently for turns on a boogie board",
+      "emotion": "energetic",
+      "resolution": "making a new friend"
+    },
+    {
+      "problem": "While flying a kite in the beach breeze, character learns about listening to parents",
+      "activity": "flying a kite in the beach breeze",
+      "emotion": "calm",
+      "resolution": "making a new friend"
+    },
+    {
+      "problem": "While having a picnic on a beach towel, character learns about listening to parents",
+      "activity": "having a picnic on a beach towel",
+      "emotion": "calm",
+      "resolution": "learning something new"
+    }
+  ],
+  "Listening to Parents_Space": [
+    {
+      "problem": "playing together becomes challenging when character doesn't wander off in a store",
+      "activity": "playing together",
+      "emotion": "confused",
+      "resolution": "working together"
+    },
+    {
+      "problem": "Character follows directions to help with a simple task while playing together",
+      "activity": "playing together",
+      "emotion": "excited",
+      "resolution": "perseverance"
+    },
+    {
+      "problem": "helping each other becomes challenging when character doesn't touch something dangerous as warned",
+      "activity": "helping each other",
+      "emotion": "proud",
+      "resolution": "being patient"
+    },
+    {
+      "problem": "exploring together becomes challenging when character holds hands in the parking lot as required",
+      "activity": "exploring together",
+      "emotion": "confused",
+      "resolution": "thinking creatively"
+    },
+    {
+      "problem": "exploring together becomes challenging when character tells a parent before going outside",
+      "activity": "exploring together",
+      "emotion": "determined",
+      "resolution": "working together"
+    },
+    {
+      "problem": "Character doesn't wander off in a store while helping each other",
+      "activity": "helping each other",
+      "emotion": "curious",
+      "resolution": "perseverance"
+    },
+    {
+      "problem": "Character goes to bed on time without fussing while playing together",
+      "activity": "playing together",
+      "emotion": "curious",
+      "resolution": "creativity"
+    },
+    {
+      "problem": "exploring together becomes challenging when character leaves something alone that's not for children",
+      "activity": "exploring together",
+      "emotion": "confused",
+      "resolution": "thinking creatively"
+    },
+    {
+      "problem": "While playing together, character learns about listening to parents",
+      "activity": "playing together",
+      "emotion": "thoughtful",
+      "resolution": "sharing with others"
+    },
+    {
+      "problem": "While discovering something new, character learns about listening to parents",
+      "activity": "discovering something new",
+      "emotion": "amazed",
+      "resolution": "solving a problem"
+    }
+  ],
+  "Sleep Routine_Farm": [
+    {
+      "problem": "exploring together becomes challenging when character creates a special bedtime routine with family",
+      "activity": "exploring together",
+      "emotion": "confused",
+      "resolution": "trying again"
+    },
+    {
+      "problem": "Character wants 'one more story' but learns about time limits while helping each other",
+      "activity": "helping each other",
+      "emotion": "nervous",
+      "resolution": "creativity"
+    },
+    {
+      "problem": "Character wants 'one more story' but learns about time limits while helping each other",
+      "activity": "helping each other",
+      "emotion": "worried",
+      "resolution": "perseverance"
+    },
+    {
+      "problem": "helping each other becomes challenging when character struggles to fall asleep and learns relaxation techniques",
+      "activity": "helping each other",
+      "emotion": "confused",
+      "resolution": "thinking creatively"
+    },
+    {
+      "problem": "While helping each other, character learns about sleep routine",
+      "activity": "helping each other",
+      "emotion": "amazed",
+      "resolution": "making a new friend"
+    },
+    {
+      "problem": "playing together becomes challenging when character creates a special bedtime routine with family",
+      "activity": "playing together",
+      "emotion": "confused",
+      "resolution": "thinking creatively"
+    },
+    {
+      "problem": "exploring together becomes challenging when character helps create a calm, cozy sleep environment",
+      "activity": "exploring together",
+      "emotion": "determined",
+      "resolution": "thinking creatively"
+    },
+    {
+      "problem": "playing together becomes challenging when character finds that a bath before bed helps them sleep",
+      "activity": "playing together",
+      "emotion": "proud",
+      "resolution": "working together"
+    },
+    {
+      "problem": "playing together becomes challenging when character resists bedtime but learns why sleep is important",
+      "activity": "playing together",
+      "emotion": "determined",
+      "resolution": "asking for help"
+    },
+    {
+      "problem": "discovering something new becomes challenging when character has a special stuffed animal or blanket for bedtime",
+      "activity": "discovering something new",
+      "emotion": "determined",
+      "resolution": "trying again"
+    }
+  ],
+  "Listening to Parents_Birthday Party": [
+    {
+      "problem": "playing together becomes challenging when character waits patiently when asked instead of interrupting",
+      "activity": "playing together",
+      "emotion": "proud",
+      "resolution": "trying again"
+    },
+    {
+      "problem": "exploring together becomes challenging when character doesn't wander off in a store",
+      "activity": "exploring together",
+      "emotion": "determined",
+      "resolution": "thinking creatively"
+    },
+    {
+      "problem": "Character remembers to say please and thank you while discovering something new",
+      "activity": "discovering something new",
+      "emotion": "happy",
+      "resolution": "teamwork"
+    },
+    {
+      "problem": "Character doesn't open the door to strangers as taught while discovering something new",
+      "activity": "discovering something new",
+      "emotion": "happy",
+      "resolution": "kindness"
+    },
+    {
+      "problem": "exploring together becomes challenging when character stays close in a crowded place as told",
+      "activity": "exploring together",
+      "emotion": "unsure",
+      "resolution": "asking for help"
+    },
+    {
+      "problem": "helping each other becomes challenging when character doesn't open the door to strangers as taught",
+      "activity": "helping each other",
+      "emotion": "proud",
+      "resolution": "being patient"
+    },
+    {
+      "problem": "While exploring together, character learns about listening to parents",
+      "activity": "exploring together",
+      "emotion": "thoughtful",
+      "resolution": "solving a problem"
+    },
+    {
+      "problem": "While exploring together, character learns about listening to parents",
+      "activity": "exploring together",
+      "emotion": "amazed",
+      "resolution": "making a new friend"
+    },
+    {
+      "problem": "discovering something new becomes challenging when character follows directions to help with a simple task",
+      "activity": "discovering something new",
+      "emotion": "unsure",
+      "resolution": "working together"
+    },
+    {
+      "problem": "discovering something new becomes challenging when character holds hands in the parking lot as required",
+      "activity": "discovering something new",
+      "emotion": "confused",
+      "resolution": "being patient"
+    }
+  ],
+  "Facing Fears_Bedtime": [
+    {
+      "problem": "Character is scared of bugs but learns some are helpful while exploring together",
+      "activity": "exploring together",
+      "emotion": "happy",
+      "resolution": "teamwork"
+    },
+    {
+      "problem": "discovering something new becomes challenging when character is afraid of making mistakes when learning something new",
+      "activity": "discovering something new",
+      "emotion": "proud",
+      "resolution": "trying again"
+    },
+    {
+      "problem": "Character fears going to a new school or class while discovering something new",
+      "activity": "discovering something new",
+      "emotion": "nervous",
+      "resolution": "perseverance"
+    },
+    {
+      "problem": "Character fears speaking to someone they don't know while playing together",
+      "activity": "playing together",
+      "emotion": "happy",
+      "resolution": "perseverance"
+    },
+    {
+      "problem": "Character fears going to a new school or class while helping each other",
+      "activity": "helping each other",
+      "emotion": "curious",
+      "resolution": "teamwork"
+    },
+    {
+      "problem": "exploring together becomes challenging when character fears going to the doctor but finds it's not so bad",
+      "activity": "exploring together",
+      "emotion": "confused",
+      "resolution": "trying again"
+    },
+    {
+      "problem": "While discovering something new, character learns about facing fears",
+      "activity": "discovering something new",
+      "emotion": "joyful",
+      "resolution": "solving a problem"
+    },
+    {
+      "problem": "helping each other becomes challenging when character is scared of loud noises like thunder",
+      "activity": "helping each other",
+      "emotion": "surprised",
+      "resolution": "asking for help"
+    },
+    {
+      "problem": "While playing together, character learns about facing fears",
+      "activity": "playing together",
+      "emotion": "thoughtful",
+      "resolution": "helping someone"
+    },
+    {
+      "problem": "exploring together becomes challenging when character fears big animals but meets a gentle one",
+      "activity": "exploring together",
+      "emotion": "surprised",
+      "resolution": "working together"
+    }
+  ],
+  "Listening to Parents_Zoo": [
+    {
+      "problem": "While exploring together, character learns about listening to parents",
+      "activity": "exploring together",
+      "emotion": "amazed",
+      "resolution": "solving a problem"
+    },
+    {
+      "problem": "exploring together becomes challenging when character remembers to wash hands before eating as taught",
+      "activity": "exploring together",
+      "emotion": "unsure",
+      "resolution": "working together"
+    },
+    {
+      "problem": "Character waits patiently when asked instead of interrupting while discovering something new",
+      "activity": "discovering something new",
+      "emotion": "happy",
+      "resolution": "kindness"
+    },
+    {
+      "problem": "While exploring together, character learns about listening to parents",
+      "activity": "exploring together",
+      "emotion": "calm",
+      "resolution": "making a new friend"
+    },
+    {
+      "problem": "helping each other becomes challenging when character leaves something alone that's not for children",
+      "activity": "helping each other",
+      "emotion": "surprised",
+      "resolution": "trying again"
+    },
+    {
+      "problem": "playing together becomes challenging when character picks up toys when asked without complaining",
+      "activity": "playing together",
+      "emotion": "determined",
+      "resolution": "asking for help"
+    },
+    {
+      "problem": "helping each other becomes challenging when character wants to play longer but comes when called",
+      "activity": "helping each other",
+      "emotion": "determined",
+      "resolution": "asking for help"
+    },
+    {
+      "problem": "Character doesn't touch something dangerous as warned while helping each other",
+      "activity": "helping each other",
+      "emotion": "excited",
+      "resolution": "teamwork"
+    },
+    {
+      "problem": "playing together becomes challenging when character tells a parent before going outside",
+      "activity": "playing together",
+      "emotion": "determined",
+      "resolution": "working together"
+    },
+    {
+      "problem": "While exploring together, character learns about listening to parents",
+      "activity": "exploring together",
+      "emotion": "amazed",
+      "resolution": "solving a problem"
+    }
+  ],
+  "Facing Fears_Zoo": [
+    {
+      "problem": "Character fears speaking to someone they don't know while discovering something new",
+      "activity": "discovering something new",
+      "emotion": "happy",
+      "resolution": "teamwork"
+    },
+    {
+      "problem": "helping each other becomes challenging when character is afraid of deep water but wants to swim",
+      "activity": "helping each other",
+      "emotion": "surprised",
+      "resolution": "asking for help"
+    },
+    {
+      "problem": "helping each other becomes challenging when character is afraid of making mistakes when learning something new",
+      "activity": "helping each other",
+      "emotion": "confused",
+      "resolution": "trying again"
+    },
+    {
+      "problem": "Character is scared of bugs but learns some are helpful while playing together",
+      "activity": "playing together",
+      "emotion": "curious",
+      "resolution": "teamwork"
+    },
+    {
+      "problem": "exploring together becomes challenging when character fears speaking to someone they don't know",
+      "activity": "exploring together",
+      "emotion": "determined",
+      "resolution": "working together"
+    },
+    {
+      "problem": "playing together becomes challenging when character fears speaking to someone they don't know",
+      "activity": "playing together",
+      "emotion": "confused",
+      "resolution": "asking for help"
+    },
+    {
+      "problem": "Character is scared to try food that looks strange while discovering something new",
+      "activity": "discovering something new",
+      "emotion": "nervous",
+      "resolution": "kindness"
+    },
+    {
+      "problem": "exploring together becomes challenging when character is scared of bugs but learns some are helpful",
+      "activity": "exploring together",
+      "emotion": "proud",
+      "resolution": "thinking creatively"
+    },
+    {
+      "problem": "While discovering something new, character learns about facing fears",
+      "activity": "discovering something new",
+      "emotion": "amazed",
+      "resolution": "making a new friend"
+    },
+    {
+      "problem": "Character is scared to try food that looks strange while discovering something new",
+      "activity": "discovering something new",
+      "emotion": "worried",
+      "resolution": "teamwork"
+    }
+  ]
+}
