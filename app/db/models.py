@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, Float
 from sqlalchemy.orm import relationship
 
 from app.db.database import Base
@@ -18,6 +18,8 @@ class StoryHistory(Base):
     story_text = Column(Text)
     audio_path = Column(String(255))
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    llm_duration = Column(Float, nullable=True)  # Time in seconds for LLM generation
+    tts_duration = Column(Float, nullable=True)  # Time in seconds for TTS generation
     
     # Track which characters were in the story
     characters = relationship("StoryCharacter", back_populates="story")
@@ -48,6 +50,7 @@ class StoryPreferences(Base):
     # LLM Provider settings
     llm_provider = Column(String(50), default="openai")  # openai, anthropic, azure
     llm_model = Column(String(100))  # The specific model to use
+    local_api_url = Column(String(255))  # URL for local OpenAI API server
     
     # TTS Provider settings
     tts_provider = Column(String(50), default="elevenlabs")  # elevenlabs, amazon_polly, none

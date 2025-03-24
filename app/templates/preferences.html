@@ -72,6 +72,32 @@
         min-width: 1.5rem;
         text-align: center;
     }
+    
+    .text-gold {
+        color: #FFD700;
+    }
+    
+    .connection-status {
+        margin-top: 10px;
+        padding: 5px 10px;
+        border-radius: 4px;
+        display: inline-block;
+    }
+    
+    .connection-status.connecting {
+        background-color: #f8f9fa;
+        color: #6c757d;
+    }
+    
+    .connection-status.success {
+        background-color: #d4edda;
+        color: #155724;
+    }
+    
+    .connection-status.error {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
 </style>
 {% endblock %}
 
@@ -191,6 +217,7 @@
                                     <option value="openai">OpenAI</option>
                                     <option value="anthropic">Anthropic (Claude)</option>
                                     <option value="azure">Azure OpenAI</option>
+                                    <option value="local">Local OpenAI API</option>
                                 </select>
                             </div>
                             
@@ -224,6 +251,47 @@
                                 </div>
                             </div>
                             
+                            <div id="local-models" class="provider-models" style="display: none;">
+                                <div class="mb-3">
+                                    <label for="local_model" class="form-label">Local Model</label>
+                                    <div class="input-group">
+                                        <select class="form-select" id="local_model" name="llm_model">
+                                            <option value="">Loading models...</option>
+                                        </select>
+                                        <button class="btn btn-outline-primary" type="button" id="refresh-models-btn" title="Refresh Models">
+                                            <i class="fas fa-sync-alt me-1"></i> Refresh
+                                        </button>
+                                    </div>
+                                    <div id="local-models-loading" class="mt-2" style="display: none;">
+                                        <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                        <small class="ms-2">Loading models from server...</small>
+                                    </div>
+                                    <div id="local-models-error" class="text-danger mt-2" style="display: none;">
+                                        <small>Could not load models from server. Please check your API URL and make sure the server is running.</small>
+                                    </div>
+                                    <small class="form-text text-muted mt-2">
+                                        This will use models from your local API server running with OpenAI API compatibility.
+                                    </small>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="local_api_url" class="form-label">Local API URL</label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="local_api_url" 
+                                               placeholder="http://localhost:8080/v1" value="{{ local_api_url }}">
+                                        <button class="btn btn-outline-primary" type="button" id="test-connection-btn" title="Test Connection">
+                                            <i class="fas fa-plug me-1"></i> Test Connection
+                                        </button>
+                                    </div>
+                                    <div class="form-group mt-2">
+                                        <button type="button" class="btn btn-info" onclick="testLocalConnection()">Test Connection</button>
+                                        <button type="button" class="btn btn-secondary" onclick="fetchLocalModels()">Refresh Models</button>
+                                        <div id="connection-status" class="connection-status">Not tested</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
                             <div class="alert alert-info">
                                 <i class="fas fa-info-circle me-2"></i>
                                 API keys are stored in environment variables or .env file for security.
@@ -247,7 +315,8 @@
                                 <label for="tts_provider" class="form-label">TTS Provider</label>
                                 <select class="form-select" id="tts_provider" name="tts_provider">
                                     <option value="elevenlabs">ElevenLabs</option>
-                                    <option value="amazon_polly">Amazon Polly</option>
+                                    <option value="amazon">Amazon Polly</option>
+                                    <option value="piper">Piper (Local TTS)</option>
                                     <option value="none">None (Testing Only)</option>
                                 </select>
                             </div>
@@ -338,7 +407,7 @@
             loadVoices(this.value);
         });
         
-        // Form submission handlers
+        // Handle form submission handlers
         document.getElementById('story-preferences-form').addEventListener('submit', function(e) {
             e.preventDefault();
             savePreferences(this);
@@ -359,9 +428,14 @@
             savePreferences(this);
         });
         
-        // Set the save-all-btn click handler
-        document.getElementById('save-all-btn').addEventListener('click', function() {
-            savePreferences(new Event('click'));
+        // Add event listener for refresh models button
+        document.getElementById('refresh-models-btn').addEventListener('click', function() {
+            fetchLocalModels();
+        });
+        
+        // Add event listener for test connection button
+        document.getElementById('test-connection-btn').addEventListener('click', function() {
+            testLocalConnection();
         });
     });
     
@@ -439,6 +513,217 @@
             });
     }
     
+    // Fetch local models from the API
+    function fetchLocalModels() {
+        // Show loading indicator
+        document.getElementById('local-models-loading').style.display = 'block';
+        document.getElementById('local-models-error').style.display = 'none';
+        
+        // Get the current API URL from the input field
+        const apiUrlInput = document.getElementById('local_api_url');
+        let apiUrl = apiUrlInput.value.trim();
+        
+        // Validate and ensure correct URL format
+        if (apiUrl) {
+            // Make sure the URL has http:// prefix
+            if (!apiUrl.startsWith('http://') && !apiUrl.startsWith('https://')) {
+                apiUrl = 'http://' + apiUrl;
+            }
+            
+            // Make sure the URL ends with /v1
+            if (!apiUrl.endsWith('/v1')) {
+                apiUrl = apiUrl.endsWith('/') ? apiUrl + 'v1' : apiUrl + '/v1';
+            }
+            
+            // Update the input field with the corrected URL
+            apiUrlInput.value = apiUrl;
+            
+            // Store in localStorage
+            localStorage.setItem('temp_local_api_url', apiUrl);
+            
+            console.log("Using API URL:", apiUrl);
+        } else {
+            // Use default or previously saved
+            apiUrl = localStorage.getItem('temp_local_api_url') || '';
+        }
+        
+        // Prepare the URL - add query parameter if API URL is set
+        let fetchUrl = '/api/stories/models/local';
+        if (apiUrl) {
+            fetchUrl += `?api_url=${encodeURIComponent(apiUrl)}`;
+        }
+        
+        console.log("Fetching from:", fetchUrl);
+        
+        // Fetch the models
+        fetch(fetchUrl)
+            .then(response => response.json())
+            .then(data => {
+                // Hide loading indicator
+                document.getElementById('local-models-loading').style.display = 'none';
+                
+                // Check if we have models
+                if (data && Array.isArray(data) && data.length > 0) {
+                    // Use the updateModelOptions function to update the dropdown
+                    updateModelOptions(data);
+                    showToast('Local models loaded successfully', 'success');
+                } else {
+                    // No models found or there was an error
+                    document.getElementById('local-models-error').style.display = 'block';
+                    
+                    if (data.detail) {
+                        document.getElementById('local-models-error').innerHTML = 
+                            `<small>${data.detail}</small>`;
+                        showToast(`Error: ${data.detail}`, 'danger');
+                    } else {
+                        document.getElementById('local-models-error').innerHTML = 
+                            '<small>No models found. Is your local API server running?</small>';
+                        showToast('No models found. Is your LM Studio server running?', 'warning');
+                    }
+                    
+                    // Add a default option to the dropdown
+                    const modelSelect = document.getElementById('local_model');
+                    modelSelect.innerHTML = '<option value="">No models found</option>';
+                }
+            })
+            .catch(error => {
+                // Hide loading indicator
+                document.getElementById('local-models-loading').style.display = 'none';
+                
+                // Show error
+                document.getElementById('local-models-error').style.display = 'block';
+                document.getElementById('local-models-error').innerHTML = 
+                    `<small>Error: ${error.message}</small>`;
+                console.error('Error fetching local models:', error);
+                showToast('Error fetching local models: ' + error.message, 'danger');
+                
+                // Add a default option
+                const modelSelect = document.getElementById('local_model');
+                modelSelect.innerHTML = '<option value="">Failed to load models</option>';
+            });
+    }
+    
+    // Test connection to local API
+    function testLocalConnection() {
+        const statusElement = document.getElementById('connection-status');
+        statusElement.textContent = 'Testing connection...';
+        statusElement.className = 'connection-status connecting';
+        
+        // Get the API URL
+        const apiUrlInput = document.getElementById('local_api_url');
+        let apiUrl = apiUrlInput.value.trim();
+        
+        if (!apiUrl) {
+            statusElement.textContent = 'Error: Please enter an API URL';
+            statusElement.className = 'connection-status error';
+            return;
+        }
+        
+        // Apply the same validation logic from fetchLocalModels
+        // Make sure the URL has http:// prefix
+        if (!apiUrl.startsWith('http://') && !apiUrl.startsWith('https://')) {
+            apiUrl = 'http://' + apiUrl;
+        }
+        
+        // Make sure the URL ends with /v1
+        if (!apiUrl.endsWith('/v1')) {
+            apiUrl = apiUrl.endsWith('/') ? apiUrl + 'v1' : apiUrl + '/v1';
+        }
+        
+        // Update the input field with the corrected URL
+        apiUrlInput.value = apiUrl;
+        
+        console.log("Testing connection with URL:", apiUrl);
+        
+        // Use the API to test the connection by trying to fetch models
+        fetch(`/api/stories/models/local?api_url=${encodeURIComponent(apiUrl)}`)
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => {
+                        throw new Error(err.detail || 'Connection failed');
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                statusElement.textContent = 'Connection successful! Found ' + data.length + ' models.';
+                statusElement.className = 'connection-status success';
+                
+                // Update the models dropdown with the fetched models
+                updateModelOptions(data);
+                
+                // Store the validated URL
+                localStorage.setItem('temp_local_api_url', apiUrl);
+                
+                // Auto-save the preferences with the new URL
+                if (confirm('Connection successful! Do you want to save this API URL to your preferences?')) {
+                    // Set the local provider
+                    document.getElementById('llm_provider').value = 'local';
+                    // Update the model selector for the local provider
+                    updateModelSelector('local');
+                    // Save the preferences
+                    savePreferences({preventDefault: function(){}});
+                }
+            })
+            .catch(error => {
+                console.error('Connection error:', error);
+                statusElement.textContent = 'Connection failed: ' + error.message;
+                statusElement.className = 'connection-status error';
+            });
+    }
+    
+    // Update model options dropdown with the fetched models
+    function updateModelOptions(models) {
+        // Get the select element
+        const modelSelect = document.getElementById('local_model');
+        
+        // Clear existing options
+        modelSelect.innerHTML = '';
+        
+        // Check if we have models
+        if (models && models.length > 0) {
+            // Add options for each model
+            models.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model;
+                option.textContent = model;
+                modelSelect.appendChild(option);
+            });
+            
+            // Set the previously selected model if available
+            if (currentPreferences.llm_model) {
+                // Try to find the model in the list
+                let modelFound = false;
+                for (let i = 0; i < modelSelect.options.length; i++) {
+                    if (modelSelect.options[i].value === currentPreferences.llm_model) {
+                        modelSelect.selectedIndex = i;
+                        modelFound = true;
+                        break;
+                    }
+                }
+                
+                // If model not found, select the first one
+                if (!modelFound && modelSelect.options.length > 0) {
+                    modelSelect.selectedIndex = 0;
+                }
+            }
+            
+            // Hide error message if it was displayed
+            document.getElementById('local-models-error').style.display = 'none';
+        } else {
+            // No models found
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'No models found';
+            modelSelect.appendChild(option);
+            
+            // Show error
+            document.getElementById('local-models-error').style.display = 'block';
+            document.getElementById('local-models-error').innerHTML = 
+                '<small>No models found. Is your local API configured correctly?</small>';
+        }
+    }
+    
     // Update model selector based on provider
     function updateModelSelector(provider) {
         // Hide all model selectors
@@ -462,6 +747,20 @@
                 if (currentPreferences.llm_model) {
                     modelSelect.value = currentPreferences.llm_model;
                 }
+            }
+            
+            // If this is the local provider, check if we should fetch models
+            if (provider === 'local') {
+                // Get the model select and clear any previous content
+                const modelSelect = document.getElementById('local_model');
+                
+                // Always show a prompt to test the connection first
+                modelSelect.innerHTML = '<option value="" disabled selected>Click "Test Connection" to load models</option>';
+                
+                // Show the message about testing connection
+                document.getElementById('local-models-error').style.display = 'block';
+                document.getElementById('local-models-error').innerHTML = 
+                    '<small>Enter your API URL above and click "Test Connection" to load available models</small>';
             }
         }
     }
@@ -513,10 +812,17 @@
     
     // Save preferences from a form
     function savePreferences(event) {
-        event.preventDefault();
+        // Check if event is a form element (passed directly) or an event (from submit)
+        if (event instanceof HTMLFormElement) {
+            // It's a form element
+            const form = event;
+            event = { preventDefault: () => {} }; // Create dummy event
+        } else if (typeof event.preventDefault === 'function') {
+            // It's already an event, prevent default form submission
+            event.preventDefault();
+        }
         
-        // Get active tab
-        const activeTab = document.querySelector('.nav-link.active').getAttribute('id');
+        console.log("Save preferences triggered");
         
         // Create preferences object
         let preferences = {};
@@ -531,6 +837,27 @@
         
         // Add provider settings
         preferences.llm_provider = document.getElementById('llm_provider').value;
+        
+        // Add model based on the selected provider
+        const provider = preferences.llm_provider;
+        if (provider === 'openai') {
+            preferences.llm_model = document.getElementById('openai_model').value;
+        } else if (provider === 'anthropic') {
+            preferences.llm_model = document.getElementById('anthropic_model').value;
+        } else if (provider === 'azure') {
+            preferences.llm_model = document.getElementById('azure_model').value;
+        } else if (provider === 'local') {
+            preferences.llm_model = document.getElementById('local_model').value;
+            
+            // Always save the local_api_url value when local provider is selected
+            const localApiUrl = document.getElementById('local_api_url').value;
+            if (localApiUrl) {
+                preferences.local_api_url = localApiUrl;
+                console.log("Saving local API URL: " + localApiUrl);
+            }
+        }
+        
+        // Add TTS settings
         preferences.tts_provider = document.getElementById('tts_provider').value;
         
         // Add voice ID if a voice is selected and TTS provider isn't 'none'
@@ -540,11 +867,43 @@
             preferences.voice_id = null;
         }
         
-        // Show saving indicator
-        const saveBtn = document.getElementById('save-preferences-btn');
-        const originalBtnText = saveBtn.innerHTML;
-        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
-        saveBtn.disabled = true;
+        // Storage settings
+        preferences.audio_dir = document.getElementById('audio_dir').value;
+        preferences.network_share_path = document.getElementById('network_share_path').value;
+        preferences.network_share_url = document.getElementById('network_share_url').value;
+        
+        // Log the preferences object to console for debugging
+        console.log("Saving preferences:", preferences);
+        
+        // Find and show saving indicator on the button that was clicked
+        // First try to get the button that might have triggered this
+        let saveBtn = null;
+        
+        // Try to get the save button from the active tab
+        const activeTabId = document.querySelector('.nav-link.active').getAttribute('id');
+        const activeTabContent = document.querySelector('.tab-pane.active');
+        
+        if (activeTabContent) {
+            console.log("Active tab:", activeTabId);
+            // Try to find the submit button in the active tab
+            saveBtn = activeTabContent.querySelector('button[type="submit"]');
+            console.log("Found save button:", saveBtn);
+        }
+        
+        // If we couldn't find a specific button, fallback to a default
+        if (!saveBtn) {
+            console.log("Using fallback button selector");
+            saveBtn = document.querySelector('button[type="submit"]');
+        }
+        
+        const originalBtnText = saveBtn ? saveBtn.innerHTML : 'Save';
+        if (saveBtn) {
+            console.log("Updating button text for saving indicator");
+            saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+            saveBtn.disabled = true;
+        } else {
+            console.log("Could not find save button to update");
+        }
         
         // Save to server
         fetch('/api/preferences/', {
@@ -563,6 +922,7 @@
         .then(data => {
             currentPreferences = data;
             showToast('Preferences saved successfully!', 'success');
+            console.log("Preferences saved:", data);
         })
         .catch(error => {
             console.error('Error saving preferences:', error);
@@ -570,8 +930,10 @@
         })
         .finally(() => {
             // Restore button state
-            saveBtn.innerHTML = originalBtnText;
-            saveBtn.disabled = false;
+            if (saveBtn) {
+                saveBtn.innerHTML = originalBtnText;
+                saveBtn.disabled = false;
+            }
         });
     }
     

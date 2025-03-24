@@ -136,6 +136,8 @@ class LLMProvider(ABC):
         Format the story with a clear title, and divide it into short paragraphs for easy reading aloud.
         
         Random seed for variation: {story_seed}
+
+        ONLY RETURN THE TITLE and the STORY TEXT, NOTHING ELSE, not intros and no music or anything like that, just the story text.
         """
         
         logger.debug(f"Created story prompt with scenario: {specific_scenario}")

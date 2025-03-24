@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Form, UploadFile, File, Query
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import logging
 import os
+import httpx
 
 from app.db.database import get_db
 from app.schemas.story import (
@@ -45,6 +46,18 @@ async def generate_story(story_request: StoryGenRequest, db: Session = Depends(g
         # If using Azure OpenAI, check if we need to set deployment name
         if story_request.llm_provider and story_request.llm_provider.lower() in ["azure", "azure_openai"] and story_request.deployment_name:
             os.environ["AZURE_OPENAI_DEPLOYMENT"] = story_request.deployment_name
+            
+        # If using local OpenAI API, set the URL from the request or preferences
+        if story_request.llm_provider == "local":
+            # First try to use the URL from the request if provided
+            if hasattr(story_request, "local_api_url") and story_request.local_api_url:
+                os.environ["LOCAL_OPENAI_API_URL"] = story_request.local_api_url
+                logger.info(f"Using Local OpenAI API URL from request: {story_request.local_api_url}")
+                
+                # Set the model for the local provider if specified in the request
+                if story_request.model:
+                    os.environ["LOCAL_MODEL"] = story_request.model
+                    logger.info(f"Using specified local model: {story_request.model}")
         
         # Get user preferences
         preferences = crud.get_preferences(db)
@@ -93,6 +106,25 @@ async def generate_story(story_request: StoryGenRequest, db: Session = Depends(g
                 "favorite_theme": preferences.favorite_theme,
                 "preferred_story_length": preferences.preferred_story_length
             }
+            
+            # Add local_api_url to environment if using local provider
+            if story_request.llm_provider == "local" and hasattr(preferences, "local_api_url"):
+                # Safely get the local_api_url value and convert it to a string
+                local_api_url = getattr(preferences, "local_api_url", None)
+                if local_api_url is not None and str(local_api_url).strip():
+                    os.environ["LOCAL_OPENAI_API_URL"] = str(local_api_url)
+                    logger.info(f"Using custom Local OpenAI API URL from preferences: {local_api_url}")
+                    
+                    # Set the model for the local provider if specified in the request
+                    if story_request.model:
+                        os.environ["LOCAL_MODEL"] = story_request.model
+                        logger.info(f"Using specified local model: {story_request.model}")
+                    elif hasattr(preferences, "llm_model"):
+                        # Safely get the llm_model value
+                        llm_model = getattr(preferences, "llm_model", None)
+                        if llm_model is not None and str(llm_model).strip():
+                            os.environ["LOCAL_MODEL"] = str(llm_model)
+                            logger.info(f"Using model from preferences for local API: {llm_model}")
         
         # Extract characters from the request and convert to the format expected by StoryGenerator
         characters = []
@@ -405,3 +437,66 @@ async def get_story_settings():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve story settings: {str(e)}"
         )
+
+@router.get("/models/local", response_model=List[str])
+async def get_local_models(api_url: Optional[str] = None):
+    """Get available models from local API."""
+    try:
+        # Determine the API base URL
+        api_base = api_url or os.getenv("LOCAL_OPENAI_API_URL", "http://localhost:8080/v1")
+        
+        logger.info(f"Attempting to connect to local API at: {api_base}")
+        
+        # Validate API URL format
+        if not api_base.startswith(("http://", "https://")):
+            api_base = f"http://{api_base}"
+        
+        if not api_base.endswith("/v1"):
+            api_base = f"{api_base.rstrip('/')}/v1"
+            
+        logger.info(f"Using normalized API URL: {api_base}")
+        
+        # Extract host and port for logging
+        from urllib.parse import urlparse
+        parsed_url = urlparse(api_base)
+        host = parsed_url.hostname
+        port = parsed_url.port
+        logger.info(f"Connecting to host: {host}, port: {port}")
+        
+        # Create a client with a short timeout for faster response
+        client = httpx.Client(timeout=10.0)
+        
+        # Add detailed logging for the request
+        logger.info(f"Making request to: {api_base}/models")
+        
+        # Make the API call
+        response = client.get(f"{api_base}/models")
+        
+        # Log response status
+        logger.info(f"Response status: {response.status_code}")
+        
+        if response.status_code == 200:
+            models_data = response.json()
+            # Extract model IDs from the response
+            models = [model["id"] for model in models_data.get("data", [])]
+            logger.info(f"Successfully retrieved {len(models)} models from local API")
+            return models
+        else:
+            logger.error(f"Failed to get models with status code: {response.status_code}")
+            logger.error(f"Response: {response.text}")
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Failed to get models from local API: {response.text}"
+            )
+    
+    except httpx.ConnectError as e:
+        logger.error(f"Connection error: {str(e)}")
+        # Check if the error is related to port 1234
+        error_str = str(e)
+        
+        if "port=1234" in error_str:
+            detail = "Cannot connect to LM Studio on port 1234. Make sure the server is running and try again. The server log shows it's running, so there might be another issue with the connection."
+        else:
+            detail = f"Cannot connect to local API: {error_str}. Check if the server is running and the URL is correct."
+        
+        raise HTTPException(status_code=503, detail=detail)

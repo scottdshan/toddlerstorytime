@@ -42,6 +42,7 @@ class StoryGenRequest(BaseModel):
     deployment_name: Optional[str] = None  # For Azure OpenAI
     tts_provider: Optional[str] = "elevenlabs"
     voice_id: Optional[str] = None
+    local_api_url: Optional[str] = None  # For local LLM provider
 
 class StoryResponse(StoryBase):
     id: int
@@ -51,6 +52,8 @@ class StoryResponse(StoryBase):
     audio_path: Optional[str] = None
     created_at: datetime
     characters: List[StoryCharacter]
+    llm_duration: Optional[float] = None  # Time in seconds for LLM generation
+    tts_duration: Optional[float] = None  # Time in seconds for TTS generation
 
     class Config:
         from_attributes = True
@@ -65,6 +68,8 @@ class StoryHistoryResponse(BaseModel):
     characters: List[StoryCharacter]
     created_at: datetime
     audio_path: Optional[str]
+    llm_duration: Optional[float] = None  # Time in seconds for LLM generation
+    tts_duration: Optional[float] = None  # Time in seconds for TTS generation
 
     class Config:
         from_attributes = True
@@ -80,6 +85,7 @@ class StoryPreferencesBase(BaseModel):
     # LLM Provider settings
     llm_provider: Optional[str] = "openai"
     llm_model: Optional[str] = None
+    local_api_url: Optional[str] = None
     
     # TTS Provider settings
     tts_provider: Optional[str] = "elevenlabs"

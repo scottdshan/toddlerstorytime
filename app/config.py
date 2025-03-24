@@ -25,6 +25,10 @@ AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY") or "Error"
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT") or "Error"
 AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT") or "Error"
 
+# Local OpenAI API settings
+LOCAL_OPENAI_API_URL = os.getenv("LOCAL_OPENAI_API_URL", "http://localhost:8080/v1")
+LOCAL_OPENAI_API_KEY = os.getenv("LOCAL_OPENAI_API_KEY", "")  # Many local deployments don't need an API key
+
 # Voice settings
 DEFAULT_VOICE_ID = os.getenv("DEFAULT_VOICE_ID")
 DEFAULT_TTS_PROVIDER = os.getenv("DEFAULT_TTS_PROVIDER", "elevenlabs")

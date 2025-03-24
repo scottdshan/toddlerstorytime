@@ -3,6 +3,7 @@ from app.tts.base import TTSProvider
 from app.tts.elevenlabs_provider import ElevenLabsProvider
 from app.tts.none_provider import NoneProvider
 from app.tts.amazon_polly_provider import AmazonPollyProvider
+from app.tts.piper_provider import PiperProvider
 import os
 
 class TTSFactory:
@@ -17,7 +18,7 @@ class TTSFactory:
         Get a TTS provider instance by name
         
         Args:
-            provider_name: Name of the TTS provider ("elevenlabs", "none", "amazon", etc.)
+            provider_name: Name of the TTS provider ("elevenlabs", "none", "amazon", "piper", etc.)
             voice_id: Optional voice ID to use
             
         Returns:
@@ -39,5 +40,7 @@ class TTSFactory:
             return NoneProvider(voice_id=voice_id)
         elif provider_name in ["amazon", "amazon_polly", "amazon-polly", "polly"]:
             return AmazonPollyProvider(voice_id=voice_id)
+        elif provider_name == "piper":
+            return PiperProvider(voice_id=voice_id)
         else:
             raise ValueError(f"Unsupported TTS provider: {provider_name}")

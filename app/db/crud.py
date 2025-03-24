@@ -18,6 +18,7 @@ def create_story(db: Session, story_data: Dict[str, Any]) -> models.StoryHistory
         prompt=story_data.get("prompt"),
         story_text=story_data.get("story_text"),
         audio_path=story_data.get("audio_path"),
+        llm_duration=story_data.get("llm_duration"),
     )
     db.add(db_story)
     db.commit()
@@ -161,14 +162,15 @@ def get_preferences(db: Session) -> Optional[models.StoryPreferences]:
     """
     return db.query(models.StoryPreferences).first()
 
-def update_story_audio_path(db: Session, story_id: int, audio_path: str) -> Optional[models.StoryHistory]:
+def update_story_audio_path(db: Session, story_id: int, audio_path: str, tts_duration: Optional[float] = None) -> Optional[models.StoryHistory]:
     """
-    Update the audio path for a story
+    Update the audio path and TTS duration for a story
     
     Args:
         db: Database session
         story_id: ID of the story to update
         audio_path: New audio path
+        tts_duration: Time in seconds taken to generate audio
         
     Returns:
         Updated story object or None if story not found
@@ -177,6 +179,8 @@ def update_story_audio_path(db: Session, story_id: int, audio_path: str) -> Opti
     if story is not None:
         # Use setattr instead of direct assignment
         setattr(story, "audio_path", audio_path)
+        if tts_duration is not None:
+            setattr(story, "tts_duration", tts_duration)
         db.commit()
         db.refresh(story)
     return story

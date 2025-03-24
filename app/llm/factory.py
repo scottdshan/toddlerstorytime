@@ -3,6 +3,7 @@ from app.llm.base import LLMProvider
 from app.llm.openai_provider import OpenAIProvider
 from app.llm.claude_provider import ClaudeProvider
 from app.llm.azure_openai_provider import AzureOpenAIProvider
+from app.llm.local_openai_provider import LocalOpenAIProvider
 import os
 
 class LLMFactory:
@@ -52,6 +53,15 @@ class LLMFactory:
                 api_key=provider_config.get("api_key"),
                 api_base=provider_config.get("api_base"),
                 api_version=provider_config.get("api_version", "2023-05-15")
+            )
+        elif provider_name in ["local", "local_openai", "local-openai"]:
+            # Get the model from environment variable if not specified in config
+            model = provider_config.get("model") or os.environ.get("LOCAL_MODEL", "llama3")
+            
+            return LocalOpenAIProvider(
+                model=model,
+                api_key=provider_config.get("api_key"),
+                api_base=provider_config.get("api_base") or os.environ.get("LOCAL_OPENAI_API_URL")
             )
         else:
             raise ValueError(f"Unsupported LLM provider: {provider_name}")

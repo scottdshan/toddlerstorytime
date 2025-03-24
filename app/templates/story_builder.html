@@ -75,6 +75,7 @@
                                 <option value="openai">OpenAI</option>
                                 <option value="anthropic">Claude</option>
                                 <option value="azure">Azure OpenAI</option>
+                                <option value="local">Local OpenAI API</option>
                             </select>
                         </div>
                         
@@ -90,6 +91,7 @@
                             <select class="form-select" id="ttsProvider" name="ttsProvider">
                                 <option value="elevenlabs">ElevenLabs</option>
                                 <option value="amazon">Amazon Polly</option>
+                                <option value="piper">Piper (Local TTS)</option>
                                 <option value="none">None (Testing)</option>
                             </select>
                         </div>
@@ -132,8 +134,11 @@
                     <button id="regenerateBtn" class="btn btn-secondary me-2">
                         <i class="fas fa-sync me-2"></i>Regenerate
                     </button>
-                    <button id="playOnHaBtn" class="btn btn-info" style="display: none;">
+                    <button id="playOnHaBtn" class="btn btn-info me-2" style="display: none;">
                         <i class="fas fa-broadcast-tower me-2"></i>Play on Home Assistant
+                    </button>
+                    <button id="newStoryBtn" class="btn btn-primary">
+                        <i class="fas fa-plus me-2"></i>New Story
                     </button>
                 </div>
             </div>
@@ -291,7 +296,7 @@
                 charDiv.innerHTML = `
                     <div class="form-check">
                         <input class="form-check-input character-checkbox" type="checkbox" 
-                               value="${character}" id="char${index}">
+                               name="character" value="${character}" id="char${index}">
                         <label class="form-check-label" for="char${index}">
                             ${character}
                         </label>
@@ -333,84 +338,182 @@
             showToast('Audio playback complete', 'info');
         });
         
-        // Function to generate a story
-        function generateStory(randomize) {
-            // Get selected characters
-            const selectedCharacters = [];
-            document.querySelectorAll('.character-checkbox:checked').forEach(checkbox => {
-                // Format each character as an object with character_name property
-                selectedCharacters.push({ character_name: checkbox.value });
-            });
-            
-            // Validate form
-            if (!randomize) {
+        // Generate story request and submit to API
+        async function generateStory(randomize) {
+            try {
+                // Show generating UI
+                document.getElementById('storyForm').style.display = 'none';
+                document.getElementById('loadingContainer').style.display = 'block';
+                document.getElementById('storyResult').style.display = 'none';
+                document.getElementById('progressBar').style.width = '0%';
+                document.getElementById('loadingMessage').textContent = "Gathering story elements...";
+                
+                // Clear any previous interval
+                if (window.progressInterval) {
+                    clearInterval(window.progressInterval);
+                }
+                
+                // Start progress simulation
+                simulateProgress();
+                
+                // Get form values
                 const universe = document.getElementById('universe').value;
                 const setting = document.getElementById('setting').value;
                 const theme = document.getElementById('theme').value;
-                const storyLength = document.getElementById('storyLength').value;
+                const story_length = document.getElementById('storyLength').value;
+                const child_name = document.getElementById('childName').value;
                 
-                if (!universe || !setting || !theme || !storyLength) {
-                    showToast('Please fill in all required fields', 'danger');
+                // Check if required fields are filled
+                if (!universe || !setting || !theme || !story_length || !child_name) {
+                    showToast('Please fill out all required fields', 'warning');
+                    // Reset form display
+                    document.getElementById('storyForm').style.display = 'block';
+                    document.getElementById('loadingContainer').style.display = 'none';
                     return;
                 }
                 
-                if (selectedCharacters.length === 0) {
-                    showToast('Please select at least one character', 'danger');
+                // Get selected characters
+                const characterCheckboxes = document.querySelectorAll('input[name="character"]:checked');
+                
+                console.log("Selected characters:", characterCheckboxes);
+                
+                const characters = Array.from(characterCheckboxes).map(checkbox => {
+                    return {
+                        character_name: checkbox.value
+                    };
+                });
+                
+                // Log for debugging
+                console.log("Characters array:", characters);
+                
+                // Check if at least one character is selected
+                if (characters.length === 0) {
+                    showToast('Please select at least one character', 'warning');
+                    // Reset form display
+                    document.getElementById('storyForm').style.display = 'block';
+                    document.getElementById('loadingContainer').style.display = 'none';
                     return;
                 }
-            }
-            
-            // Show loading indicator
-            document.getElementById('storyResult').style.display = 'none';
-            document.getElementById('loadingContainer').style.display = 'block';
-            
-            // Simulate progress (since we can't know the actual progress)
-            simulateProgress();
-            
-            // Prepare data
-            const formData = {
-                child_name: document.getElementById('childName').value,
-                universe: document.getElementById('universe').value,
-                setting: document.getElementById('setting').value,
-                theme: document.getElementById('theme').value,
-                story_length: document.getElementById('storyLength').value,
-                characters: selectedCharacters, // Now contains objects with character_name property
-                llm_provider: document.getElementById('llmProvider').value,
-                tts_provider: document.getElementById('ttsProvider').value,
-                voice_id: document.getElementById('voiceSelect').value,
-                randomize: randomize
-            };
-            
-            console.log('Sending story request:', formData);
-            
-            // Make API request
-            fetch('/api/stories/generate', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(formData)
-            })
-            .then(response => {
+                
+                // Get provider selections
+                const llm_provider = document.getElementById('llmProvider').value;
+                const tts_provider = document.getElementById('ttsProvider').value;
+                
+                // Get model and voice selections if applicable
+                let model = null;
+                let voice_id = null;
+                
+                // If a provider requires a model, get the selected model
+                if (llm_provider === 'openai' || llm_provider === 'anthropic' || 
+                    llm_provider === 'azure' || llm_provider === 'local') {
+                    model = document.getElementById('modelSelect').value;
+                }
+                
+                // Get voice selection if not using 'none' provider
+                if (tts_provider !== 'none') {
+                    voice_id = document.getElementById('voiceSelect').value;
+                }
+                
+                // For local provider, we need to get the API URL from preferences
+                let local_api_url = null;
+                if (llm_provider === 'local') {
+                    // Get from preferences
+                    const prefs = JSON.parse(localStorage.getItem('userPreferences') || '{}');
+                    local_api_url = prefs.local_api_url || null;
+                    
+                    if (!local_api_url) {
+                        showToast('Please set up your Local API URL in Preferences first', 'warning');
+                        // Reset form display
+                        document.getElementById('storyForm').style.display = 'block';
+                        document.getElementById('loadingContainer').style.display = 'none';
+                        return;
+                    }
+                    
+                    if (!model) {
+                        showToast('Please select a model', 'warning');
+                        // Reset form display
+                        document.getElementById('storyForm').style.display = 'block';
+                        document.getElementById('loadingContainer').style.display = 'none';
+                        return;
+                    }
+                }
+                
+                // Create the request object
+                const storyRequest = {
+                    universe,
+                    setting,
+                    theme,
+                    story_length,
+                    child_name,
+                    characters,
+                    llm_provider,
+                    tts_provider,
+                    voice_id,
+                    model,
+                    local_api_url,
+                    randomize: randomize === true
+                };
+                
+                console.log('Generating story with request:', storyRequest);
+                
+                // Submit to API
+                const response = await fetch('/api/stories/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(storyRequest)
+                });
+                
+                // Check for errors
                 if (!response.ok) {
-                    throw new Error('Failed to generate story');
-                }
-                return response.json();
-            })
-            .then(data => {
-                // Update form if randomized
-                if (randomize) {
-                    updateFormWithGeneratedData(data);
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Failed to generate story');
                 }
                 
-                // Display the story
-                displayStory(data);
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                document.getElementById('loadingContainer').style.display = 'none';
-                showToast('Failed to generate story: ' + error.message, 'danger');
-            });
+                // Parse response
+                const storyData = await response.json();
+                
+                // Update progress to 100%
+                document.getElementById('progressBar').style.width = '100%';
+                
+                // Show story
+                showStory(storyData);
+                
+            } catch (error) {
+                console.error('Error generating story:', error);
+                
+                // Stop progress simulation
+                if (window.progressInterval) {
+                    clearInterval(window.progressInterval);
+                }
+                
+                // Show error in UI
+                const loadingMessage = document.getElementById('loadingMessage');
+                if (loadingMessage) {
+                    loadingMessage.innerHTML = `<i class="fas fa-exclamation-circle text-danger"></i> Error: ${error.message}`;
+                }
+                
+                // Add a retry button
+                const loadingContainer = document.getElementById('loadingContainer');
+                if (loadingContainer) {
+                    const retryBtn = document.createElement('button');
+                    retryBtn.className = 'btn btn-primary mt-3';
+                    retryBtn.innerHTML = '<i class="fas fa-sync-alt me-2"></i>Try Again';
+                    retryBtn.onclick = () => {
+                        document.getElementById('storyForm').style.display = 'block';
+                        document.getElementById('loadingContainer').style.display = 'none';
+                        // Remove the retry button
+                        while (loadingContainer.querySelector('button')) {
+                            loadingContainer.querySelector('button').remove();
+                        }
+                    };
+                    loadingContainer.appendChild(retryBtn);
+                }
+                
+                // Show error notification
+                showToast('Error generating story: ' + error.message, 'danger');
+            }
         }
         
         // Function to simulate progress
@@ -428,10 +531,18 @@
                 "Creating audio narration..."
             ];
             
-            const interval = setInterval(() => {
+            // Clear any existing interval
+            if (window.progressInterval) {
+                clearInterval(window.progressInterval);
+            }
+            
+            // Create new interval
+            window.progressInterval = setInterval(() => {
                 progress += 5;
-                if (progress > 100) {
-                    clearInterval(interval);
+                
+                // If we're at the end, stop
+                if (progress > 95) {
+                    clearInterval(window.progressInterval);
                     return;
                 }
                 
@@ -444,6 +555,8 @@
                 else if (progress === 75) loadingMessage.textContent = messages[4];
                 else if (progress === 90) loadingMessage.textContent = messages[5];
             }, 500);
+            
+            return window.progressInterval;
         }
         
         // Function to update the form with generated data
@@ -469,10 +582,27 @@
         }
         
         // Function to display the generated story
-        function displayStory(data) {
-            // Hide loading indicator
+        function showStory(data) {
+            // Hide loading indicator and show story result
             document.getElementById('loadingContainer').style.display = 'none';
             
+            // If we have data, display it
+            if (data) {
+                // Update the form with generated data if randomize was used
+                if (data.randomize) {
+                    updateFormWithGeneratedData(data);
+                }
+                
+                // Display the story
+                displayStory(data);
+            } else {
+                // No data, just show the form again
+                document.getElementById('storyForm').style.display = 'block';
+            }
+        }
+        
+        // Function to display the generated story
+        function displayStory(data) {
             // Extract title from story text (assuming first line is the title)
             let storyLines = data.story_text.split('\n');
             let title = storyLines[0].replace(/^#+ /, ''); // Remove Markdown heading syntax
@@ -513,8 +643,6 @@
                 playOnHaBtn.onclick = function() {
                     openHaPlayerSelector();
                 };
-                
-                // Remove autoplay - the user must click a button to play audio
             } else {
                 // Hide buttons if no audio
                 document.getElementById('playLocallyBtn').style.display = 'none';
@@ -528,112 +656,189 @@
             document.getElementById('storyResult').scrollIntoView({ behavior: 'smooth' });
         }
         
-        // Function to load user preferences from the server
-        async function loadUserPreferences() {
+        // Load user preferences
+        function loadUserPreferences() {
             try {
-                const response = await fetch('/api/preferences/');
-                
-                if (!response.ok) {
-                    throw new Error('Failed to load preferences');
-                }
-                
-                const preferences = await response.json();
-                console.log('Loaded preferences:', preferences);
-                
-                // Apply preferences to form fields
-                if (preferences) {
-                    // Set child name
-                    if (preferences.child_name) {
-                        document.getElementById('childName').value = preferences.child_name;
-                    }
-                    
-                    // Set favorite universe
-                    if (preferences.favorite_universe) {
-                        const universeSelect = document.getElementById('universe');
-                        for (let i = 0; i < universeSelect.options.length; i++) {
-                            if (universeSelect.options[i].value === preferences.favorite_universe) {
-                                universeSelect.selectedIndex = i;
-                                break;
+                fetch('/api/preferences/')
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Failed to load preferences');
+                        }
+                        return response.json();
+                    })
+                    .then(preferences => {
+                        // Store preferences in localStorage for later access
+                        localStorage.setItem('userPreferences', JSON.stringify(preferences));
+                        console.log("Loaded user preferences:", preferences);
+                        
+                        // Apply preferences to form
+                        
+                        // Set child name
+                        if (preferences.child_name) {
+                            document.getElementById('childName').value = preferences.child_name;
+                        }
+                        
+                        // Set universe preference 
+                        if (preferences.favorite_universe) {
+                            const universeSelect = document.getElementById('universe');
+                            for (let i = 0; i < universeSelect.options.length; i++) {
+                                if (universeSelect.options[i].value === preferences.favorite_universe) {
+                                    universeSelect.selectedIndex = i;
+                                    break;
+                                }
                             }
                         }
-                    }
-                    
-                    // Set favorite setting
-                    if (preferences.favorite_setting) {
-                        const settingSelect = document.getElementById('setting');
-                        for (let i = 0; i < settingSelect.options.length; i++) {
-                            if (settingSelect.options[i].value === preferences.favorite_setting) {
-                                settingSelect.selectedIndex = i;
-                                break;
+                        
+                        // Set favorite setting
+                        if (preferences.favorite_setting) {
+                            const settingSelect = document.getElementById('setting');
+                            for (let i = 0; i < settingSelect.options.length; i++) {
+                                if (settingSelect.options[i].value === preferences.favorite_setting) {
+                                    settingSelect.selectedIndex = i;
+                                    break;
+                                }
                             }
                         }
-                    }
-                    
-                    // Set favorite theme
-                    if (preferences.favorite_theme) {
-                        const themeSelect = document.getElementById('theme');
-                        for (let i = 0; i < themeSelect.options.length; i++) {
-                            if (themeSelect.options[i].value === preferences.favorite_theme) {
-                                themeSelect.selectedIndex = i;
-                                break;
+                        
+                        // Set favorite theme
+                        if (preferences.favorite_theme) {
+                            const themeSelect = document.getElementById('theme');
+                            for (let i = 0; i < themeSelect.options.length; i++) {
+                                if (themeSelect.options[i].value === preferences.favorite_theme) {
+                                    themeSelect.selectedIndex = i;
+                                    break;
+                                }
                             }
                         }
-                    }
-                    
-                    // Set preferred story length
-                    if (preferences.preferred_story_length) {
-                        const lengthSelect = document.getElementById('storyLength');
-                        for (let i = 0; i < lengthSelect.options.length; i++) {
-                            if (lengthSelect.options[i].value === preferences.preferred_story_length) {
-                                lengthSelect.selectedIndex = i;
-                                break;
+                        
+                        // Set story length preference
+                        if (preferences.preferred_story_length) {
+                            const lengthSelect = document.getElementById('storyLength');
+                            for (let i = 0; i < lengthSelect.options.length; i++) {
+                                if (lengthSelect.options[i].value === preferences.preferred_story_length) {
+                                    lengthSelect.selectedIndex = i;
+                                    break;
+                                }
                             }
                         }
-                    }
-                    
-                    // Set LLM provider
-                    if (preferences.llm_provider) {
-                        const providerSelect = document.getElementById('llmProvider');
-                        for (let i = 0; i < providerSelect.options.length; i++) {
-                            if (providerSelect.options[i].value === preferences.llm_provider) {
-                                providerSelect.selectedIndex = i;
-                                updateModelOptions(preferences.llm_provider);
-                                break;
+                        
+                        // Set LLM provider
+                        if (preferences.llm_provider) {
+                            const providerSelect = document.getElementById('llmProvider');
+                            for (let i = 0; i < providerSelect.options.length; i++) {
+                                if (providerSelect.options[i].value === preferences.llm_provider) {
+                                    providerSelect.selectedIndex = i;
+                                    updateModelOptions(preferences.llm_provider);
+                                    break;
+                                }
+                            }
+                            
+                            // If using local provider, check if we need to get models
+                            if (preferences.llm_provider === 'local' && preferences.local_api_url) {
+                                console.log("Local provider selected, checking for models");
+                                fetchLocalModels(preferences.local_api_url, preferences.llm_model);
                             }
                         }
-                    }
-                    
-                    // Set TTS provider and load voices
-                    if (preferences.tts_provider) {
-                        const ttsSelect = document.getElementById('ttsProvider');
-                        for (let i = 0; i < ttsSelect.options.length; i++) {
-                            if (ttsSelect.options[i].value === preferences.tts_provider) {
-                                ttsSelect.selectedIndex = i;
-                                loadVoices(preferences.tts_provider, preferences.voice_id);
-                                break;
+                        
+                        // Set TTS provider and load voices
+                        if (preferences.tts_provider) {
+                            const ttsSelect = document.getElementById('ttsProvider');
+                            for (let i = 0; i < ttsSelect.options.length; i++) {
+                                if (ttsSelect.options[i].value === preferences.tts_provider) {
+                                    ttsSelect.selectedIndex = i;
+                                    loadVoices(preferences.tts_provider, preferences.voice_id);
+                                    break;
+                                }
                             }
+                        } else {
+                            // Load voices for the current selection if no preference
+                            loadVoices(document.getElementById('ttsProvider').value);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error loading preferences:', error);
+                    });
+            } catch (error) {
+                console.error('Error in loadUserPreferences:', error);
+            }
+        }
+        
+        // Fetch local models from the API
+        function fetchLocalModels(apiUrl, selectedModel) {
+            console.log("Fetching local models with URL:", apiUrl);
+            
+            // Show loading in the dropdown
+            const modelSelect = document.getElementById('modelSelect');
+            modelSelect.innerHTML = '<option value="">Loading models...</option>';
+            
+            // Ensure we can see the model dropdown
+            document.getElementById('modelSelectContainer').style.display = 'block';
+            
+            // Prepare the URL - add query parameter if API URL is set
+            let fetchUrl = '/api/stories/models/local';
+            if (apiUrl) {
+                fetchUrl += `?api_url=${encodeURIComponent(apiUrl)}`;
+            }
+            
+            console.log("Fetching models from:", fetchUrl);
+            
+            // Fetch the models
+            fetch(fetchUrl)
+                .then(response => response.json())
+                .then(models => {
+                    // Clear current options
+                    modelSelect.innerHTML = '';
+                    
+                    // Check if we have models
+                    if (models && Array.isArray(models) && models.length > 0) {
+                        console.log("Loaded models:", models);
+                        
+                        // Add models to options
+                        models.forEach(model => {
+                            const option = document.createElement('option');
+                            option.value = model;
+                            option.textContent = model;
+                            modelSelect.appendChild(option);
+                        });
+                        
+                        // Check if we should select a specific model
+                        if (selectedModel) {
+                            console.log("Looking for selected model:", selectedModel);
+                            
+                            // Try to find and select the model
+                            let found = false;
+                            for (let i = 0; i < modelSelect.options.length; i++) {
+                                if (modelSelect.options[i].value === selectedModel) {
+                                    console.log("Found and selecting model:", selectedModel);
+                                    modelSelect.selectedIndex = i;
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            
+                            // If not found, select the first model
+                            if (!found && modelSelect.options.length > 0) {
+                                console.log("Selected model not found, selecting first model");
+                                modelSelect.selectedIndex = 0;
+                            }
+                        } else if (modelSelect.options.length > 0) {
+                            // Just select the first model if no preference
+                            modelSelect.selectedIndex = 0;
                         }
                     } else {
-                        // Load voices for the current selection if no preference
-                        loadVoices(document.getElementById('ttsProvider').value);
+                        // No models found, add a notice
+                        modelSelect.innerHTML = `
+                            <option value="">No models found</option>
+                        `;
+                        console.log("No models found or there was an error");
                     }
-                    
-                    // Check the checkbox for the favorite character
-                    if (preferences.favorite_character) {
-                        const characterCheckboxes = document.querySelectorAll('input[name="character"]');
-                        characterCheckboxes.forEach(checkbox => {
-                            if (checkbox.value === preferences.favorite_character) {
-                                checkbox.checked = true;
-                            }
-                        });
-                    }
-                }
-                
-            } catch (error) {
-                console.error('Error loading preferences:', error);
-                // Show error notification
-                showToast('Error loading preferences: ' + error.message, 'danger');
-            }
+                })
+                .catch(error => {
+                    console.error('Error fetching local models:', error);
+                    modelSelect.innerHTML = `
+                        <option value="">Error loading models</option>
+                    `;
+                });
         }
         
         // Function to load voices for the selected TTS provider
@@ -719,7 +924,8 @@
                 azure: [
                     { value: "aoai-sds-gpt4o-mini-global", label: "GPT-4o Mini" }
                     // Users will need to fill this in based on their Azure setup
-                ]
+                ],
+                local: [] // Will be populated from API
             };
             
             // Trigger initial setup of model options
@@ -738,12 +944,96 @@
                 // Show model selector and populate with options
                 modelContainer.style.display = 'block';
                 
-                window.modelOptions[provider].forEach(option => {
-                    const optElement = document.createElement('option');
-                    optElement.value = option.value;
-                    optElement.textContent = option.label;
-                    modelSelect.appendChild(optElement);
-                });
+                // For local provider, fetch models from API
+                if (provider === 'local') {
+                    // Fetch models every time local provider is selected
+                    fetch('/api/preferences/')
+                        .then(response => response.json())
+                        .then(preferences => {
+                            if (preferences.local_api_url) {
+                                // If we have a saved API URL, use it to fetch models
+                                const apiUrl = preferences.local_api_url;
+                                console.log("Using saved local API URL:", apiUrl);
+                                
+                                // Make a request with the saved API URL
+                                fetch(`/api/stories/models/local?api_url=${encodeURIComponent(apiUrl)}`)
+                                    .then(response => response.json())
+                                    .then(data => {
+                                        // Process the models
+                                        if (data && Array.isArray(data) && data.length > 0) {
+                                            // Clear existing options
+                                            window.modelOptions.local = [];
+                                            modelSelect.innerHTML = "";
+                                            
+                                            // Add models to options
+                                            data.forEach(model => {
+                                                window.modelOptions.local.push({
+                                                    value: model,
+                                                    label: model
+                                                });
+                                                
+                                                const option = document.createElement('option');
+                                                option.value = model;
+                                                option.textContent = model;
+                                                modelSelect.appendChild(option);
+                                            });
+                                            
+                                            // Check if there's a previously selected or preferred model
+                                            if (preferences.llm_model && preferences.llm_provider === 'local') {
+                                                const preferredModel = preferences.llm_model;
+                                                console.log("Looking for preferred model:", preferredModel);
+                                                
+                                                // Try to find and select the preferred model
+                                                let found = false;
+                                                for (let i = 0; i < modelSelect.options.length; i++) {
+                                                    if (modelSelect.options[i].value === preferredModel) {
+                                                        console.log("Found and selecting preferred model");
+                                                        modelSelect.selectedIndex = i;
+                                                        found = true;
+                                                        break;
+                                                    }
+                                                }
+                                                
+                                                // If not found, select the first model
+                                                if (!found && modelSelect.options.length > 0) {
+                                                    console.log("Preferred model not found, selecting first model");
+                                                    modelSelect.selectedIndex = 0;
+                                                }
+                                            } else if (modelSelect.options.length > 0) {
+                                                // Just select the first model if no preference
+                                                modelSelect.selectedIndex = 0;
+                                            }
+                                            
+                                            // Remove the notice if it exists
+                                            const notice = document.getElementById('localApiNotice');
+                                            if (notice) {
+                                                notice.remove();
+                                            }
+                                        } else {
+                                            showLocalApiConfigMessage(modelSelect);
+                                        }
+                                    })
+                                    .catch(error => {
+                                        console.error("Error fetching local models:", error);
+                                        showLocalApiConfigMessage(modelSelect);
+                                    });
+                            } else {
+                                showLocalApiConfigMessage(modelSelect);
+                            }
+                        })
+                        .catch(error => {
+                            console.error("Error fetching preferences:", error);
+                            showLocalApiConfigMessage(modelSelect);
+                        });
+                } else {
+                    // Populate with existing options for other providers
+                    window.modelOptions[provider].forEach(option => {
+                        const optElement = document.createElement('option');
+                        optElement.value = option.value;
+                        optElement.textContent = option.label;
+                        modelSelect.appendChild(optElement);
+                    });
+                }
                 
                 // For Azure, show a field for deployment name
                 if (provider === 'azure') {
@@ -752,6 +1042,27 @@
             } else {
                 // Hide model selector
                 modelContainer.style.display = 'none';
+            }
+        }
+        
+        // Helper function to show the Local API configuration message
+        function showLocalApiConfigMessage(modelSelect) {
+            // Show message about setting up in preferences
+            modelSelect.innerHTML = "";
+            const promptOption = document.createElement('option');
+            promptOption.value = "";
+            promptOption.textContent = "Configure Local API in Preferences first";
+            promptOption.disabled = true;
+            promptOption.selected = true;
+            modelSelect.appendChild(promptOption);
+            
+            // Add an info message
+            if (!document.getElementById('localApiNotice')) {
+                const infoDiv = document.createElement('div');
+                infoDiv.id = 'localApiNotice';
+                infoDiv.className = 'alert alert-info mt-2';
+                infoDiv.innerHTML = '<small><i class="fas fa-info-circle me-1"></i> Please set up your Local API URL in <a href="/preferences" target="_blank">Preferences</a> first</small>';
+                modelSelect.parentNode.appendChild(infoDiv);
             }
         }
         
@@ -996,6 +1307,76 @@
         
         // Add pause/resume button functionality
         document.getElementById('pause-resume-ha-btn').addEventListener('click', togglePlayPause);
+        
+        // Add new story button functionality
+        document.getElementById('newStoryBtn').addEventListener('click', function() {
+            // Hide story result and show form
+            document.getElementById('storyResult').style.display = 'none';
+            document.getElementById('storyForm').style.display = 'block';
+        });
+        
+        // The global audio player function
+        function playAudioGlobal(audioPath, title) {
+            console.log('Playing audio from path:', audioPath);
+            
+            const audioElement = document.getElementById('storyAudio');
+            audioElement.src = audioPath;
+            audioElement.load();
+            
+            // Play the audio
+            const playPromise = audioElement.play();
+            
+            // Handle play promise (required by some browsers)
+            if (playPromise !== undefined) {
+                playPromise.then(_ => {
+                    // Playing started successfully
+                    showToast(`Now playing: ${title}`, 'info');
+                })
+                .catch(error => {
+                    // Auto-play prevented by browser
+                    console.error('Error playing audio:', error);
+                    showToast('Please click play again to start audio (browser prevented auto-play)', 'warning');
+                });
+            }
+        }
+        
+        // Function to show toast notifications
+        function showToast(message, type = 'info') {
+            // Check if we have the Toast container, if not, create it
+            let toastContainer = document.getElementById('toast-container');
+            if (!toastContainer) {
+                toastContainer = document.createElement('div');
+                toastContainer.id = 'toast-container';
+                toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+                document.body.appendChild(toastContainer);
+            }
+            
+            // Create a unique ID for this toast
+            const toastId = 'toast-' + Date.now();
+            
+            // Create toast element
+            const toastHtml = `
+                <div id="${toastId}" class="toast align-items-center text-white bg-${type} border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                    <div class="d-flex">
+                        <div class="toast-body">
+                            ${message}
+                        </div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                </div>
+            `;
+            
+            // Add toast to container
+            toastContainer.innerHTML += toastHtml;
+            
+            // Initialize and show the toast
+            const toastElement = document.getElementById(toastId);
+            const toast = new bootstrap.Toast(toastElement, {
+                autohide: true,
+                delay: 5000
+            });
+            toast.show();
+        }
     });
 </script>
 {% endblock %}

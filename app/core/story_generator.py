@@ -3,6 +3,7 @@ import os
 import json
 import uuid
 import random
+import time
 from datetime import datetime
 from typing import Dict, List, Any, Optional, Union
 from sqlalchemy.orm import Session
@@ -69,6 +70,26 @@ class StoryGenerator:
             logger.error(f"Error initializing StoryGenerator: {e}", exc_info=True)
             raise
         
+    def reset_llm_provider(self):
+        """
+        Reset the LLM provider based on current environment settings.
+        This ensures we're using the most up-to-date provider configuration.
+        """
+        try:
+            llm_provider_name = os.environ.get("LLM_PROVIDER", "openai")
+            logger.info(f"Resetting LLM provider to: {llm_provider_name}")
+            
+            # Create a new provider instance
+            self.llm_provider = LLMFactory.get_provider(llm_provider_name)
+            
+            # Log the provider class being used
+            logger.info(f"Now using LLM provider: {self.llm_provider.__class__.__name__}")
+            
+            return True
+        except Exception as e:
+            logger.error(f"Error resetting LLM provider: {str(e)}")
+            return False
+        
     def generate_story(self, universe: Optional[str] = None, 
                       setting: Optional[str] = None,
                       theme: Optional[str] = None,
@@ -92,6 +113,9 @@ class StoryGenerator:
             Dictionary containing story details
         """
         try:
+            # Ensure we're using the correct provider based on latest environment settings
+            self.reset_llm_provider()
+            
             # Log the incoming parameters
             logger.info(f"Generating story with: Universe={universe}, Setting={setting}, Theme={theme}, "
                        f"Characters={characters}, Length={story_length}, Child={child_name}")
@@ -132,9 +156,13 @@ class StoryGenerator:
             if child_name:
                 story_elements["child_name"] = child_name
             
-            # Generate story text using LLM provider
+            # Generate story text using LLM provider - START TIMER
             logger.debug(f"Calling LLM provider with elements: {story_elements}")
+            llm_start_time = time.time()
             generated_content = self.llm_provider.generate_story(story_elements)
+            llm_end_time = time.time()
+            llm_duration = llm_end_time - llm_start_time
+            logger.info(f"LLM generation completed in {llm_duration:.2f} seconds")
             
             # Extract content from response
             story_text = generated_content.get("story_text", "")
@@ -191,6 +219,7 @@ class StoryGenerator:
                 "story_text": story_text,
                 "audio_path": None,  # Will be set if/when audio is generated
                 "child_name": story_elements.get("child_name", ""),
+                "llm_duration": llm_duration,  # Add LLM duration to story data
             }
             
             # Save to database
@@ -213,7 +242,8 @@ class StoryGenerator:
                 "story_length": db_story.story_length,
                 "child_name": db_story.child_name if hasattr(db_story, "child_name") else story_elements.get("child_name", ""),
                 "audio_path": db_story.audio_path,
-                "created_at": db_story.created_at
+                "created_at": db_story.created_at,
+                "llm_duration": llm_duration,  # Add LLM duration to response
             }
             
             return story_obj
@@ -262,23 +292,31 @@ class StoryGenerator:
                 'title': title
             }
             
-            # Generate audio using TTS provider
+            # Generate audio using TTS provider - START TIMER
+            tts_start_time = time.time()
             audio_path = tts_provider.generate_audio(
                 str(story.story_text), 
                 voice_id=voice_id,
                 story_info=story_info
             )
+            tts_end_time = time.time()
+            tts_duration = tts_end_time - tts_start_time
+            logger.info(f"TTS generation completed in {tts_duration:.2f} seconds")
             
-            # Update story with audio path in database - remove /static/ prefix for storage
+            # Update story with audio path and TTS duration in database - remove /static/ prefix for storage
             if audio_path:
                 # Remove /static/ if present for consistency in database
                 db_path = audio_path.replace('/static/', '')
-                crud.update_story_audio_path(self.db, numeric_id, db_path)
-                logger.info(f"Updated story {story_id} with audio path: {db_path}")
+                crud.update_story_audio_path(self.db, numeric_id, db_path, tts_duration)
+                logger.info(f"Updated story {story_id} with audio path: {db_path} and TTS duration: {tts_duration:.2f}s")
+                
+                # Add /static/ prefix for client response if not already present
+                if not audio_path.startswith('/static/'):
+                    audio_path = f'/static/{audio_path}'
+                
                 return audio_path
-            else:
-                logger.warning(f"No audio path returned for story {story_id}")
-                return ""
+            
+            return None
                 
         except Exception as e:
             logger.error(f"Error generating audio for story {story_id}: {str(e)}", exc_info=True)

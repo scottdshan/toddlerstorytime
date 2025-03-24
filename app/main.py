@@ -10,7 +10,7 @@ import logging
 
 from app.endpoints import stories, audio, integrations, preferences
 from app.db.database import Base, engine
-from app.config import TEMPLATES_DIR, STATIC_DIR, AUDIO_DIR, APP_NAME, DEBUG, BASE_DIR, DATABASE_URL
+from app.config import TEMPLATES_DIR, STATIC_DIR, AUDIO_DIR, APP_NAME, DEBUG, BASE_DIR, DATABASE_URL, LOCAL_OPENAI_API_URL
 
 # Configure logging
 log_file = os.path.join(BASE_DIR, "logs.txt")
@@ -139,7 +139,10 @@ async def story_history(request: Request):
 @app.get("/preferences")
 async def preferences(request: Request):
     """Render the preferences page"""
-    return templates.TemplateResponse("preferences.html", {"request": request})
+    return templates.TemplateResponse("preferences.html", {
+        "request": request,
+        "local_api_url": LOCAL_OPENAI_API_URL
+    })
 
 @app.get("/health")
 async def health_check():

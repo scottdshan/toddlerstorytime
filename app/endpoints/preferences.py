@@ -4,6 +4,7 @@ from app.db.database import get_db
 from app.db import crud
 from app.schemas.story import StoryPreferencesCreate, StoryPreferencesResponse
 import logging
+import os
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -37,7 +38,14 @@ async def save_preferences(preferences: StoryPreferencesCreate, db: Session = De
     Save user preferences
     """
     try:
-        result = crud.save_preferences(db, preferences.dict())
+        prefs_dict = preferences.dict()
+        
+        # Log if local_api_url is being saved
+        if preferences.llm_provider == "local" and preferences.local_api_url:
+            logger.info(f"Saving Local OpenAI API URL: {preferences.local_api_url}")
+            os.environ["LOCAL_OPENAI_API_URL"] = preferences.local_api_url
+        
+        result = crud.save_preferences(db, prefs_dict)
         return result
     except Exception as e:
         logger.error(f"Error saving preferences: {str(e)}")
