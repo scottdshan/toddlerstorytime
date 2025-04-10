@@ -36,7 +36,7 @@ class LLMFactory:
         
         if provider_name == "openai":
             return OpenAIProvider(
-                model=provider_config.get("model", "gpt-4"),
+                model=provider_config.get("model", "gpt-4o"),
                 api_key=provider_config.get("api_key")
             )
         elif provider_name == "claude" or provider_name == "anthropic":
@@ -49,9 +49,9 @@ class LLMFactory:
             deployment_name = provider_config.get("deployment_name") or os.environ.get("AZURE_OPENAI_DEPLOYMENT")
             
             return AzureOpenAIProvider(
-                deployment_name=deployment_name,
-                api_key=provider_config.get("api_key"),
-                api_base=provider_config.get("api_base"),
+                deployment_name=deployment_name, # type: ignore
+                api_key=provider_config.get("api_key"), # type: ignore
+                api_base=provider_config.get("api_base"), # type: ignore
                 api_version=provider_config.get("api_version", "2023-05-15")
             )
         elif provider_name in ["local", "local_openai", "local-openai"]:

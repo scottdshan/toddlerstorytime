@@ -1,9 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Response, Form, UploadFile, File, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Form, UploadFile, File, Query, Request
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, AsyncGenerator
 import logging
 import os
 import httpx
+import asyncio
+import json
+import base64
+import pysbd
+import re
+import uuid
 
 from app.db.database import get_db
 from app.schemas.story import (
@@ -15,6 +22,9 @@ from app.schemas.story import (
 )
 from app.core.story_generator import StoryGenerator
 from app.db import crud
+from app.llm.factory import LLMFactory
+from app.tts.factory import TTSFactory
+from app.config import AUDIO_DIR, NETWORK_SHARE_PATH # Import config values
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -23,6 +33,9 @@ router = APIRouter()
 
 # Create a singleton instance of StoryGenerator
 story_generator = StoryGenerator()
+
+# Initialize once (outside the request handler)
+segmenter = pysbd.Segmenter(language="en", clean=False)
 
 @router.post("/generate", response_model=StoryResponse, status_code=status.HTTP_201_CREATED)
 async def generate_story(story_request: StoryGenRequest, db: Session = Depends(get_db)):
@@ -500,3 +513,250 @@ async def get_local_models(api_url: Optional[str] = None):
             detail = f"Cannot connect to local API: {error_str}. Check if the server is running and the URL is correct."
         
         raise HTTPException(status_code=503, detail=detail)
+
+@router.post("/generate_streaming", status_code=status.HTTP_200_OK)
+async def generate_story_streaming(story_request: StoryGenRequest, request: Request, db: Session = Depends(get_db)):
+    """
+    Generate a new story with streaming text and audio based on the provided parameters
+    """
+    try:
+        logger.info(f"Streaming story generation request received: {story_request.dict()}")
+        
+        # Set environment variables if needed for provider selection
+        if story_request.llm_provider:
+            os.environ["LLM_PROVIDER"] = story_request.llm_provider
+            
+        if story_request.tts_provider:
+            os.environ["TTS_PROVIDER"] = story_request.tts_provider
+            
+        # Set voice ID if provided
+        if story_request.voice_id:
+            os.environ["TTS_VOICE_ID"] = story_request.voice_id
+        
+        # Extract characters from the request
+        characters = []
+        if story_request.characters:
+            characters = [char.character_name for char in story_request.characters]
+        
+        # Create a request dictionary with the story elements
+        story_elements = {
+            "universe": story_request.universe or "",
+            "setting": story_request.setting or "",
+            "theme": story_request.theme or "",
+            "characters": characters or [],
+            "story_length": story_request.story_length or "Short (3-5 minutes)",
+            "child_name": story_request.child_name or "Wesley",
+            "randomize": True if not (story_request.universe and 
+                                    story_request.setting and 
+                                    story_request.theme and 
+                                    characters) else False
+        }
+        
+        # Determine if we want streaming audio
+        generate_audio = request.query_params.get("audio", "true").lower() == "true"
+        
+        # Create LLM and TTS providers
+        llm_provider = LLMFactory.get_provider(os.environ.get("LLM_PROVIDER", "openai"))
+        tts_provider = None
+        if generate_audio:
+            tts_provider = TTSFactory.get_provider(os.environ.get("TTS_PROVIDER", "elevenlabs"))
+        
+        async def generate_streaming_content():
+            try:
+                # Add a 10-second delay at the very beginning
+                # await asyncio.sleep(10) # Removed this server-side delay
+                
+                # Start with a JSON metadata chunk
+                metadata = {
+                    "event": "metadata",
+                    "data": {
+                        "universe": story_elements["universe"],
+                        "setting": story_elements["setting"],
+                        "theme": story_elements["theme"],
+                        "characters": story_elements["characters"],
+                        "story_length": story_elements["story_length"],
+                        "child_name": story_elements["child_name"],
+                    }
+                }
+                yield f"data: {json.dumps(metadata)}\n\n"
+                
+                # Buffer for collecting the story text as it's generated
+                full_text = ""
+                chunk_buffer = ""
+                full_audio_data = b"" # Initialize buffer for full audio
+                
+                # Get the streaming response from the LLM provider and properly await it
+                try:
+                    async for text_chunk in llm_provider.generate_story_streaming(story_elements): # type: ignore
+                        full_text += text_chunk
+                        chunk_buffer += text_chunk
+                        
+                        # Send text chunk to the client
+                        text_event = {
+                            "event": "text",
+                            "data": {"chunk": text_chunk}
+                        }
+                        yield f"data: {json.dumps(text_event)}\n\n"
+                        
+                        # If we're generating audio and have enough text, process it
+                        if generate_audio and tts_provider and len(chunk_buffer) >= 50:
+                            # Look for sentence endings to make natural breaks
+                            sentences = segmenter.segment(chunk_buffer)
+                            if sentences and len(sentences) > 1:
+                                # Process complete sentences except the last one which might be incomplete
+                                text_to_process = " ".join(sentences[:-1])
+                                chunk_buffer = sentences[-1]  # Keep the potentially incomplete sentence
+                                
+                                try:
+                                    # Process each audio chunk directly
+                                    async for audio_chunk in tts_provider.generate_audio_streaming( # type: ignore
+                                        text=text_to_process,
+                                        voice_id=story_request.voice_id
+                                    ):
+                                        # Convert binary audio chunk to base64 to send via SSE
+                                        b64_audio = base64.b64encode(audio_chunk).decode('utf-8')
+                                        
+                                        audio_event = {
+                                            "event": "audio",
+                                            "data": {
+                                                "chunk": b64_audio,
+                                                "text": text_to_process
+                                            }
+                                        }
+                                        yield f"data: {json.dumps(audio_event)}\n\n"
+                                        # Accumulate raw audio data
+                                        full_audio_data += audio_chunk
+                                except Exception as audio_err:
+                                    logger.error(f"Error generating streaming audio: {str(audio_err)}")
+                                    # Continue with text generation even if audio fails
+                
+                    # Process any remaining text for audio
+                    if generate_audio and chunk_buffer and tts_provider:
+                        try:
+                            # Process final chunk
+                            async for audio_chunk in tts_provider.generate_audio_streaming( # type: ignore
+                                text=chunk_buffer,
+                                voice_id=story_request.voice_id
+                            ):
+                                b64_audio = base64.b64encode(audio_chunk).decode('utf-8')
+                                
+                                audio_event = {
+                                    "event": "audio",
+                                    "data": {
+                                        "chunk": b64_audio,
+                                        "text": chunk_buffer
+                                    }
+                                }
+                                yield f"data: {json.dumps(audio_event)}\n\n"
+                                # Accumulate raw audio data
+                                full_audio_data += audio_chunk
+                        except Exception as audio_err:
+                            logger.error(f"Error generating final streaming audio: {str(audio_err)}")
+                            # Continue with saving the story even if audio fails
+                
+                except Exception as text_err:
+                    logger.error(f"Error generating streaming text: {str(text_err)}")
+                    error_event = {
+                        "event": "error",
+                        "data": {"message": f"Text generation error: {str(text_err)}"}
+                    }
+                    yield f"data: {json.dumps(error_event)}\n\n"
+                    return
+                
+                # Save the complete story to the database
+                try:
+                    # Extract title from first line if possible
+                    title = "Bedtime Story"
+                    story_lines = full_text.strip().split("\n")
+                    if story_lines and not story_lines[0].startswith("Once upon a time"):
+                        title = story_lines[0].strip()
+                        # Remove common title markers
+                        for marker in ["Title:", "# ", "## "]:
+                            if title.startswith(marker):
+                                title = title[len(marker):].strip()
+                    
+                    # Save audio file if data exists
+                    audio_path = None
+                    if full_audio_data:
+                        try:
+                            # Generate filename (using logic similar to TTS providers)
+                            safe_title = re.sub(r'[^\w\s-]', '', title).strip().replace(' ', '_')
+                            safe_universe = re.sub(r'[^\w\s-]', '', story_elements["universe"]).strip().replace(' ', '_')
+                            filename = f"{safe_universe[:20]}_{safe_title[:30]}_{uuid.uuid4().hex[:8]}.mp3"
+                            
+                            local_file_path = os.path.join(AUDIO_DIR, filename)
+                            network_file_path = os.path.join(NETWORK_SHARE_PATH, filename)
+                            audio_path = f"audio/{filename}" # Relative path for DB/URL
+
+                            # Save to local directory
+                            with open(local_file_path, 'wb') as f:
+                                f.write(full_audio_data)
+                            logger.info(f"Saved streamed audio to {local_file_path}")
+
+                            # Save to network share if available
+                            if NETWORK_SHARE_PATH and os.path.exists(os.path.dirname(NETWORK_SHARE_PATH)):
+                                try:
+                                    with open(network_file_path, 'wb') as f:
+                                        f.write(full_audio_data)
+                                    logger.info(f"Copied streamed audio to network share: {network_file_path}")
+                                except Exception as share_err:
+                                    logger.warning(f"Failed to save streamed audio to network share: {share_err}")
+                        except Exception as save_err:
+                            logger.error(f"Failed to save accumulated streamed audio: {save_err}")
+                            audio_path = None # Ensure path is None if saving failed
+
+                    # Save story to database
+                    story_data = {
+                        "title": title,
+                        "universe": story_elements["universe"],
+                        "setting": story_elements["setting"],
+                        "theme": story_elements["theme"],
+                        "story_length": story_elements["story_length"],
+                        "characters": [{"character_name": char} for char in story_elements["characters"]],
+                        "prompt": "",  # We don't have the prompt in streaming mode
+                        "story_text": full_text,
+                        "child_name": story_elements["child_name"],
+                        "audio_path": audio_path # Add the saved audio path
+                    }
+                    
+                    db_story = crud.create_story(db, story_data)
+                    
+                    # Send completion event with story ID
+                    complete_event = {
+                        "event": "complete",
+                        "data": {
+                            "story_id": db_story.id,
+                            "title": title
+                        }
+                    }
+                    yield f"data: {json.dumps(complete_event)}\n\n"
+                    
+                except Exception as db_err:
+                    logger.error(f"Error saving streamed story to database: {str(db_err)}")
+                    error_event = {
+                        "event": "error",
+                        "data": {"message": f"Failed to save story: {str(db_err)}"}
+                    }
+                    yield f"data: {json.dumps(error_event)}\n\n"
+            
+            except Exception as e:
+                logger.error(f"Unexpected error in streaming content generation: {str(e)}", exc_info=True)
+                error_event = {
+                    "event": "error",
+                    "data": {"message": f"Unexpected error: {str(e)}"}
+                }
+                yield f"data: {json.dumps(error_event)}\n\n"
+        
+        # Return a streaming response with event-stream content type
+        return StreamingResponse(
+            generate_streaming_content(),
+            media_type="text/event-stream"
+        )
+        
+    except Exception as e:
+        error_msg = f"Failed to generate streaming story: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=error_msg
+        )

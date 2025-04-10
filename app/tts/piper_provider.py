@@ -330,4 +330,124 @@ class PiperProvider(TTSProvider):
             'models_directory': self.models_dir,
             'piper_executable': self.piper_path,
             'repository': 'https://github.com/rhasspy/piper'
-        } 
+        }
+
+    async def generate_audio_streaming(self, text: str, 
+                                      voice_id: Optional[str] = None, 
+                                      story_info: Optional[Dict[str, Any]] = None):
+        """
+        Generate audio from text in a streaming fashion
+        
+        Args:
+            text: The text to convert to speech
+            voice_id: Optional voice ID to use
+            story_info: Optional dictionary containing universe and title
+            
+        Returns:
+            Async generator yielding chunks of audio data as they're generated
+        """
+        import asyncio
+        import io
+        import wave
+        
+        try:
+            # Use provided voice ID or default
+            selected_voice_id = voice_id or self.voice_id
+            
+            # Get full voice ID if it's just the basic name
+            if not selected_voice_id.endswith('.onnx'):
+                selected_voice_id = f"{selected_voice_id}.onnx"
+            
+            # Determine model path using same logic as in generate_audio
+            model_path = None
+            
+            # Use the specific model path from environment if available
+            if self.voice_model_path and os.path.exists(self.voice_model_path):
+                model_path = self.voice_model_path
+            else:
+                # Try multiple possible locations
+                home_dir = os.path.expanduser("~")
+                possible_locations = [
+                    selected_voice_id,
+                    os.path.join(self.models_dir, selected_voice_id),
+                    os.path.join(home_dir, "piper", selected_voice_id),
+                    f"~/piper/{selected_voice_id}",
+                    os.path.join(self.models_dir, selected_voice_id.replace('.onnx', '')) + '.onnx',
+                ]
+                
+                for location in possible_locations:
+                    # Expand ~ if present
+                    if location.startswith("~"):
+                        location = os.path.expanduser(location)
+                    
+                    if os.path.exists(location):
+                        model_path = location
+                        break
+            
+            if not model_path:
+                logger.error(f"Voice model not found for streaming: {selected_voice_id}")
+                raise FileNotFoundError(f"Voice model not found: {selected_voice_id}")
+            
+            # Extract the speaker ID from story_info if provided
+            speaker_id = None
+            if story_info and 'speaker_id' in story_info:
+                speaker_id = story_info.get('speaker_id')
+            
+            # Use a temporary file for output
+            temp_output_file = os.path.join(self.output_dir, f"temp_stream_{uuid.uuid4()}.wav")
+            
+            # Create a JSON input line for Piper
+            json_data = {"text": text, "output_file": temp_output_file}
+            if speaker_id is not None:
+                json_data["speaker_id"] = speaker_id
+            
+            json_line = json.dumps(json_data) + "\n"
+            
+            # Run Piper command with JSON input
+            cmd = [
+                self.piper_path,
+                "--model", model_path,
+                "--json-input"
+            ]
+            
+            # Log the command
+            logger.info(f"Executing piper streaming command: {' '.join(cmd)}")
+            
+            # Execute Piper to generate the audio file
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            
+            # Send the JSON data to the process
+            stdout, stderr = await process.communicate(json_line.encode())
+            
+            if process.returncode != 0:
+                logger.error(f"Piper command failed: {stderr.decode()}")
+                return
+            
+            # Read the audio file and yield chunks
+            if os.path.exists(temp_output_file):
+                try:
+                    with open(temp_output_file, 'rb') as f:
+                        # Yield file contents in chunks for streaming
+                        chunk_size = 4096  # 4KB chunks
+                        while chunk := f.read(chunk_size):
+                            yield chunk
+                            # Small delay to simulate streaming
+                            await asyncio.sleep(0.01)
+                finally:
+                    # Clean up the temporary file
+                    try:
+                        os.remove(temp_output_file)
+                    except Exception as e:
+                        logger.warning(f"Failed to remove temporary file: {e}")
+            else:
+                logger.error(f"Temporary audio file not created: {temp_output_file}")
+                
+        except Exception as e:
+            logger.error(f"Error in streaming audio generation with Piper: {str(e)}")
+            # Yield an empty chunk to prevent breaking the stream
+            yield b"" 

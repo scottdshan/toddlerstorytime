@@ -1,0 +1,340 @@
+{% extends "base.html" %}
+
+{% block title %}ESP32 Debug{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <h1>ESP32 Control Panel</h1>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>ESP32 Status</h5>
+        </div>
+        <div class="card-body">
+            <div class="mb-3" id="status-container">
+                <div class="d-flex align-items-center">
+                    <div class="spinner-border text-primary me-2" role="status" id="status-spinner">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <span id="status-message">Checking ESP32 status...</span>
+                </div>
+            </div>
+            <div id="status-details" class="d-none">
+                <p><strong>Port:</strong> <span id="port-info">N/A</span></p>
+                <p><strong>Characters:</strong> <span id="character-info">N/A</span></p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>ESP32 Connection</h5>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label for="port-select" class="form-label">Select Port:</label>
+                <select class="form-select" id="port-select">
+                    <option value="">Auto-detect</option>
+                </select>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary" id="connect-btn">Connect</button>
+                <button class="btn btn-danger" id="disconnect-btn">Disconnect</button>
+                <button class="btn btn-success" id="start-monitor-btn">Start Monitoring</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>ESP32 Voice Settings</h5>
+        </div>
+        <div class="card-body">
+            <p>Set the voice to use for stories generated from the ESP32.</p>
+            <div class="mb-3">
+                <label for="esp32-voice-select" class="form-label">Select Voice:</label>
+                <select class="form-select" id="esp32-voice-select">
+                    <option value="pNInz6obpgDQGcFmaJgB">Adam (Default)</option>
+                    <option value="EXAVITQu4vr4xnSDxMaL">Rachel</option>
+                    <option value="MF3mGyEYCl7XYWbV9V6O">Domi</option>
+                    <option value="yoZ06aMxZJJ28mfd3POQ">Sam</option>
+                    <option value="jBpfuIE2acCO8z3wKNLl">Bella</option>
+                </select>
+            </div>
+            <button class="btn btn-primary" id="set-voice-btn">Set Voice</button>
+            <div id="voice-result" class="mt-3 d-none">
+                <div class="alert alert-success">
+                    Voice set successfully!
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header">
+            <h5>Test Story Generation</h5>
+        </div>
+        <div class="card-body">
+            <p>Manually simulate character selection to test the story generation functionality.</p>
+            <div class="mb-3">
+                <label for="character-select" class="form-label">Select Character:</label>
+                <select class="form-select" id="character-select">
+                    <option value="Skye">Skye</option>
+                    <option value="Rubble">Rubble</option>
+                    <option value="Marshall">Marshall</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="voice-select" class="form-label">Select Voice:</label>
+                <select class="form-select" id="voice-select">
+                    <option value="pNInz6obpgDQGcFmaJgB">Adam (Default)</option>
+                    <option value="EXAVITQu4vr4xnSDxMaL">Rachel</option>
+                    <option value="MF3mGyEYCl7XYWbV9V6O">Domi</option>
+                    <option value="yoZ06aMxZJJ28mfd3POQ">Sam</option>
+                    <option value="jBpfuIE2acCO8z3wKNLl">Bella</option>
+                </select>
+            </div>
+            <button class="btn btn-primary" id="test-btn">Test Generate Story</button>
+            <div id="story-result" class="mt-3 d-none">
+                <div class="alert alert-success">
+                    <p id="story-message"></p>
+                    <a id="story-link" href="#" class="btn btn-primary mt-2">View Story</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initial status check
+        checkStatus();
+        
+        // Button event listeners
+        document.getElementById('connect-btn').addEventListener('click', connectESP32);
+        document.getElementById('disconnect-btn').addEventListener('click', disconnectESP32);
+        document.getElementById('start-monitor-btn').addEventListener('click', startMonitoring);
+        document.getElementById('test-btn').addEventListener('click', testGenerateStory);
+        document.getElementById('set-voice-btn').addEventListener('click', setESP32Voice);
+    });
+    
+    // Check ESP32 status
+    async function checkStatus() {
+        try {
+            const response = await fetch('/api/esp32/status');
+            const data = await response.json();
+            
+            // Update status message
+            const statusSpinner = document.getElementById('status-spinner');
+            const statusMessage = document.getElementById('status-message');
+            const statusDetails = document.getElementById('status-details');
+            const portInfo = document.getElementById('port-info');
+            const characterInfo = document.getElementById('character-info');
+            
+            statusSpinner.classList.add('d-none');
+            
+            if (data.connected) {
+                statusMessage.textContent = 'ESP32 is connected';
+                statusMessage.classList.add('text-success');
+                portInfo.textContent = data.port;
+                characterInfo.textContent = data.available_characters.join(', ');
+                statusDetails.classList.remove('d-none');
+            } else {
+                statusMessage.textContent = 'ESP32 is not connected';
+                statusMessage.classList.add('text-danger');
+                statusDetails.classList.add('d-none');
+            }
+            
+            // Populate port select
+            const portSelect = document.getElementById('port-select');
+            portSelect.innerHTML = '<option value="">Auto-detect</option>';
+            
+            data.available_ports.forEach(port => {
+                const option = document.createElement('option');
+                option.value = port;
+                option.textContent = port;
+                portSelect.appendChild(option);
+            });
+            
+        } catch (error) {
+            console.error('Error checking status:', error);
+            document.getElementById('status-spinner').classList.add('d-none');
+            document.getElementById('status-message').textContent = 'Error checking ESP32 status';
+            document.getElementById('status-message').classList.add('text-danger');
+        }
+    }
+    
+    // Connect to ESP32
+    async function connectESP32() {
+        const portSelect = document.getElementById('port-select');
+        const port = portSelect.value;
+        
+        try {
+            const response = await fetch('/api/esp32/connect', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ port: port || null })
+            });
+            
+            const data = await response.json();
+            alert(data.message);
+            checkStatus();
+        } catch (error) {
+            console.error('Error connecting:', error);
+            alert('Failed to connect to ESP32');
+        }
+    }
+    
+    // Disconnect from ESP32
+    async function disconnectESP32() {
+        try {
+            const response = await fetch('/api/esp32/disconnect', {
+                method: 'POST'
+            });
+            
+            const data = await response.json();
+            alert(data.message);
+            checkStatus();
+        } catch (error) {
+            console.error('Error disconnecting:', error);
+            alert('Failed to disconnect from ESP32');
+        }
+    }
+    
+    // Start monitoring ESP32
+    async function startMonitoring() {
+        try {
+            const response = await fetch('/api/esp32/start-monitoring', {
+                method: 'POST'
+            });
+            
+            const data = await response.json();
+            alert(data.message);
+        } catch (error) {
+            console.error('Error starting monitoring:', error);
+            alert('Failed to start ESP32 monitoring');
+        }
+    }
+    
+    // Set the voice ID for ESP32-initiated stories
+    async function setESP32Voice() {
+        const voiceId = document.getElementById('esp32-voice-select').value;
+        
+        try {
+            // Show a loading spinner
+            const setVoiceBtn = document.getElementById('set-voice-btn');
+            const originalText = setVoiceBtn.textContent;
+            setVoiceBtn.disabled = true;
+            setVoiceBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Setting...';
+            
+            // Send the voice ID request
+            const response = await fetch('/api/esp32/set-voice', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ voice_id: voiceId })
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                // Show success message
+                const voiceResult = document.getElementById('voice-result');
+                voiceResult.classList.remove('d-none');
+                
+                // Hide the message after 3 seconds
+                setTimeout(() => {
+                    voiceResult.classList.add('d-none');
+                }, 3000);
+            } else {
+                const errorData = await response.text();
+                alert(`Failed to set voice: ${errorData}`);
+            }
+            
+            // Reset button
+            setVoiceBtn.disabled = false;
+            setVoiceBtn.textContent = originalText;
+            
+        } catch (error) {
+            console.error('Error setting voice:', error);
+            alert('Failed to set voice ID');
+            document.getElementById('set-voice-btn').disabled = false;
+            document.getElementById('set-voice-btn').textContent = 'Set Voice';
+        }
+    }
+    
+    // Test generate a story directly
+    async function testGenerateStory() {
+        const character = document.getElementById('character-select').value;
+        const voiceId = document.getElementById('voice-select').value;
+        
+        try {
+            // Create a story request based on the selected character
+            const storyRequest = {
+                universe: "Paw Patrol",
+                setting: character === "Skye" ? "Sky High" : 
+                         character === "Rubble" ? "Construction Site" : 
+                         character === "Marshall" ? "Fire Station" : "Adventure Bay",
+                theme: character === "Skye" ? "flying rescue" : 
+                       character === "Rubble" ? "building adventure" : 
+                       character === "Marshall" ? "fire rescue" : "rescue mission",
+                story_length: "short",
+                characters: [{ character_name: character }],
+                child_name: "Wesley",
+                randomize: false,
+                llm_provider: "openai",
+                tts_provider: "elevenlabs",
+                voice_id: voiceId
+            };
+            
+            // Show a loading spinner
+            const testBtn = document.getElementById('test-btn');
+            const originalText = testBtn.textContent;
+            testBtn.disabled = true;
+            testBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Generating...';
+            
+            // Send the story request
+            const response = await fetch('/api/stories/generate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(storyRequest)
+            });
+            
+            if (response.status === 201) {
+                const storyData = await response.json();
+                
+                // Show success message
+                const storyResult = document.getElementById('story-result');
+                const storyMessage = document.getElementById('story-message');
+                const storyLink = document.getElementById('story-link');
+                
+                storyMessage.textContent = `Story generated successfully! Title: ${storyData.title}`;
+                storyLink.href = `/stories/${storyData.id}`;
+                storyResult.classList.remove('d-none');
+                
+                console.log('Story generated:', storyData);
+            } else {
+                const errorData = await response.text();
+                alert(`Failed to generate story: ${errorData}`);
+            }
+            
+            // Reset button
+            testBtn.disabled = false;
+            testBtn.textContent = originalText;
+            
+        } catch (error) {
+            console.error('Error generating story:', error);
+            alert('Failed to generate story');
+            document.getElementById('test-btn').disabled = false;
+            document.getElementById('test-btn').textContent = 'Test Generate Story';
+        }
+    }
+</script>
+{% endblock %} 

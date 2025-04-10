@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Dict, Any, AsyncGenerator
 import openai
 import logging
 from app.config import AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT
@@ -95,3 +95,42 @@ class AzureOpenAIProvider(LLMProvider):
                 raise Exception(f"Azure OpenAI resource not found. Check that deployment '{self.deployment_name}' exists at {self.api_base}")
             else:
                 raise
+    
+    async def generate_story_streaming(self, story_elements: Dict[str, Any]) -> AsyncGenerator[str, None]: # type: ignore
+        """
+        Generate a story based on provided elements using Azure OpenAI with streaming
+        
+        Args:
+            story_elements: Dictionary containing story elements
+            
+        Returns:
+            Async generator yielding chunks of the story text as they're generated
+        """
+        # Create prompt using the base class method
+        prompt = self.create_story_prompt(story_elements)
+        
+        try:
+            logger.info(f"Calling Azure OpenAI with streaming and deployment name: {self.deployment_name}")
+            
+            # Call Azure OpenAI API with streaming
+            stream = self.client.chat.completions.create(
+                model=self.deployment_name,  # For Azure, model is the deployment name
+                messages=[
+                    {"role": "system", "content": "You are a skilled children's storyteller who creates engaging, "
+                                                "age-appropriate bedtime stories for toddlers."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=1500,
+                temperature=0.9,
+                stream=True
+            )
+            
+            # Stream the response chunks
+            for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+                    
+        except Exception as e:
+            logger.error(f"Error in streaming story generation: {str(e)}")
+            # Don't yield error message directly as it causes frontend issues
+            # The error will be handled by the endpoint's try-except block

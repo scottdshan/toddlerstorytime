@@ -144,4 +144,30 @@ class NoneProvider(TTSProvider):
             "service": "None Provider",
             "description": "A dummy provider that doesn't actually generate audio.",
             "note": "This provider is for testing only and does not incur costs."
-        } 
+        }
+    
+    async def generate_audio_streaming(self, text: str, 
+                                      voice_id: Optional[str] = None, 
+                                      story_info: Optional[Dict[str, Any]] = None):
+        """
+        Mock streaming audio generation - yield a small dummy audio chunk
+        
+        Args:
+            text: The text to convert to speech
+            voice_id: Optional voice ID to use (not used)
+            story_info: Optional dictionary containing universe and title (not used)
+            
+        Returns:
+            Async generator yielding a single dummy audio chunk
+        """
+        import asyncio
+        
+        # Log the dummy streaming generation
+        text_excerpt = text[:50] + "..." if len(text) > 50 else text
+        logger.info(f"DUMMY TTS STREAMING: Would generate audio for: '{text_excerpt}'")
+        
+        # Add a small delay to simulate processing time
+        await asyncio.sleep(0.5)
+        
+        # Yield a single empty byte chunk for compatibility
+        yield b"" 

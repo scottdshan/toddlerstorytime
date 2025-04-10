@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Union, Dict, Any, Set
 from datetime import datetime
 from pydantic import BaseModel
 
@@ -111,3 +111,55 @@ class StoryPreferencesResponse(StoryPreferencesBase):
     
     class Config:
         orm_mode = True
+
+class StoryElementsRequest(BaseModel):
+    """
+    Request model for streaming story generation.
+    
+    Similar to StoryGenRequest but with fields specific to the streaming endpoint.
+    """
+    universe: str
+    setting: str
+    theme: str
+    story_length: str
+    characters: List[Union[StoryCharacterInput, str]]
+    child_name: Optional[str] = "Wesley"
+    title: Optional[str] = "Bedtime Story"
+    age: Optional[int] = 3
+    audio: Optional[bool] = True
+    llm_provider: Optional[str] = "openai"
+    tts_provider: Optional[str] = "elevenlabs"
+    voice_id: Optional[str] = None
+    model: Optional[str] = None
+    
+    def dict(
+        self,
+        *,
+        include: Union[Set[str], Dict[str, Any]] = None,
+        exclude: Union[Set[str], Dict[str, Any]] = None,
+        by_alias: bool = False,
+        exclude_unset: bool = False,
+        exclude_defaults: bool = False,
+        exclude_none: bool = False,
+    ) -> Dict[str, Any]:
+        """Convert to dict with proper character formatting."""
+        data = super().dict(
+            include=include,
+            exclude=exclude,
+            by_alias=by_alias,
+            exclude_unset=exclude_unset,
+            exclude_defaults=exclude_defaults,
+            exclude_none=exclude_none,
+        )
+        
+        # Format characters if they're strings
+        if data.get("characters"):
+            formatted_chars = []
+            for char in data["characters"]:
+                if isinstance(char, str):
+                    formatted_chars.append({"character_name": char})
+                else:
+                    formatted_chars.append(char)
+            data["characters"] = formatted_chars
+            
+        return data

@@ -1,6 +1,6 @@
 import openai
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, AsyncGenerator
 
 from app.config import LOCAL_OPENAI_API_URL, LOCAL_OPENAI_API_KEY
 from app.llm.base import LLMProvider
@@ -109,4 +109,43 @@ class LocalOpenAIProvider(LLMProvider):
             return {
                 "story_text": f"Sorry, I couldn't generate a story. Error: {str(e)}",
                 "prompt": prompt
-            } 
+            }
+    
+    async def generate_story_streaming(self, story_elements: Dict[str, Any]) -> AsyncGenerator[str, None]: # type: ignore
+        """
+        Generate a story based on provided elements using local OpenAI model with streaming
+        
+        Args:
+            story_elements: Dictionary containing story elements
+            
+        Returns:
+            Async generator yielding chunks of the story text as they're generated
+        """
+        # Create prompt using the base class method
+        prompt = self.create_story_prompt(story_elements)
+        
+        try:
+            logger.info(f"Calling local OpenAI with streaming using model: {self.model}")
+            
+            # Call OpenAI API with streaming
+            streaming_response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are a skilled children's storyteller who creates engaging, "
+                                                "age-appropriate bedtime stories for toddlers."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=1500,
+                stream=True
+            )
+            
+            # Process the streaming response
+            for chunk in streaming_response:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+                        
+        except Exception as e:
+            logger.error(f"Error in streaming story generation with local OpenAI: {str(e)}")
+            # Don't yield error message directly as it causes frontend issues
+            # The error will be handled by the endpoint's try-except block 

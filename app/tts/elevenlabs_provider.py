@@ -3,7 +3,9 @@ import uuid
 import logging
 import re
 import glob
-from typing import Optional, List, Dict, Any, cast, Iterator
+from typing import Optional, List, Dict, Any, cast, Iterator, AsyncGenerator, Union
+import asyncio
+from collections import deque
 
 from elevenlabs import generate, save, set_api_key, voices
 from elevenlabs.api import User
@@ -38,6 +40,11 @@ class ElevenLabsProvider(TTSProvider):
         except Exception as e:
             self.network_share_available = False
             logger.warning(f"Network share path is not available: {e}")
+        
+        # For streaming, keep a buffer of text chunks to process
+        self.text_buffer = deque()
+        # Minimum number of characters before we process a chunk
+        self.min_chunk_size = 50  
     
     def get_available_voices(self) -> List[Dict[str, Any]]:
         """Get available voices from ElevenLabs"""
@@ -172,3 +179,44 @@ class ElevenLabsProvider(TTSProvider):
         except Exception as e:
             logger.error(f"Error generating audio with ElevenLabs: {e}")
             return None
+    
+    async def generate_audio_streaming(self, text: str, 
+                                      voice_id: Optional[str] = None, 
+                                      story_info: Optional[Dict[str, Any]] = None) -> AsyncGenerator[bytes, None]: # type: ignore
+        """
+        Generate audio from text in a streaming fashion
+        
+        Args:
+            text: The text to convert to speech
+            voice_id: Optional voice ID to use
+            story_info: Optional dictionary containing universe and title
+            
+        Returns:
+            Async generator yielding chunks of audio data as they're generated
+        """
+        voice = voice_id or self.voice_id
+        
+        try:
+            # Generate audio for the text
+            logger.info(f"Generating streaming audio for text: {text[:50]}...")
+            audio_stream = generate(
+                text=text,
+                voice=str(voice),
+                model="eleven_multilingual_v2",
+                stream=True
+            )
+            
+            # Yield audio data chunks
+            for audio_chunk in audio_stream:
+                # Wait a short time to simulate real-time processing
+                # await asyncio.sleep(0.01) # Removed this small delay
+                # Ensure the audio_chunk is bytes
+                if isinstance(audio_chunk, bytes):
+                    yield audio_chunk
+                else:
+                    # Convert to bytes if it's not already
+                    yield bytes(str(audio_chunk), 'utf-8')
+                    
+        except Exception as e:
+            logger.error(f"Error in streaming audio generation: {str(e)}")
+            # Signal error in the stream

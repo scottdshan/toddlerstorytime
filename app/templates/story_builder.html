@@ -104,6 +104,13 @@
                         </div>
                     </div>
                     
+                    <div class="form-check mb-4">
+                        <input class="form-check-input" type="checkbox" id="useStreamingMode">
+                        <label class="form-check-label" for="useStreamingMode">
+                            Use streaming mode (generate text and audio in real-time)
+                        </label>
+                    </div>
+                    
                     <div class="text-center mt-4">
                         <button type="submit" id="generateBtn" class="btn btn-primary btn-lg">
                             <i class="fas fa-wand-magic-sparkles me-2"></i>Generate Story
@@ -338,10 +345,10 @@
             showToast('Audio playback complete', 'info');
         });
         
-        // Generate story request and submit to API
+        // Story generation function
         async function generateStory(randomize) {
             try {
-                // Show generating UI
+                // Show loading state
                 document.getElementById('storyForm').style.display = 'none';
                 document.getElementById('loadingContainer').style.display = 'block';
                 document.getElementById('storyResult').style.display = 'none';
@@ -456,29 +463,36 @@
                 
                 console.log('Generating story with request:', storyRequest);
                 
-                // Submit to API
-                const response = await fetch('/api/stories/generate', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(storyRequest)
-                });
+                // Choose between streaming and regular generation
+                const useStreaming = document.getElementById('useStreamingMode').checked;
                 
-                // Check for errors
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.detail || 'Failed to generate story');
+                if (useStreaming) {
+                    await generateStoryStreaming(storyRequest);
+                } else {
+                    // Submit to API
+                    const response = await fetch('/api/stories/generate', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(storyRequest)
+                    });
+                    
+                    // Check for errors
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.detail || 'Failed to generate story');
+                    }
+                    
+                    // Parse response
+                    const storyData = await response.json();
+                    
+                    // Update progress to 100%
+                    document.getElementById('progressBar').style.width = '100%';
+                    
+                    // Show story
+                    showStory(storyData);
                 }
-                
-                // Parse response
-                const storyData = await response.json();
-                
-                // Update progress to 100%
-                document.getElementById('progressBar').style.width = '100%';
-                
-                // Show story
-                showStory(storyData);
                 
             } catch (error) {
                 console.error('Error generating story:', error);
@@ -514,6 +528,284 @@
                 // Show error notification
                 showToast('Error generating story: ' + error.message, 'danger');
             }
+        }
+        
+        // Streaming story generation function
+        async function generateStoryStreaming(storyRequest) {
+            try {
+                // Prepare UI for streaming
+                const storyResultContainer = document.getElementById('storyResult');
+                if (!storyResultContainer) {
+                    throw new Error("Cannot find story result container");
+                }
+                storyResultContainer.style.display = 'block';
+                
+                // Create streaming content elements if they don't exist
+                if (!document.getElementById('streamingContent')) {
+                    const streamingDiv = document.createElement('div');
+                    streamingDiv.id = 'streamingContent';
+                    streamingDiv.className = 'streaming-content';
+                    
+                    const storyTextDiv = document.createElement('div');
+                    storyTextDiv.id = 'streamingStoryText';
+                    storyTextDiv.className = 'story-text';
+                    
+                    const audioControlDiv = document.createElement('div');
+                    audioControlDiv.id = 'streamingAudioControl';
+                    audioControlDiv.className = 'audio-control mt-4';
+                    
+                    const audioPlayer = document.createElement('audio');
+                    audioPlayer.id = 'streamingAudioPlayer';
+                    audioPlayer.controls = true;
+                    
+                    audioControlDiv.appendChild(audioPlayer);
+                    streamingDiv.appendChild(storyTextDiv);
+                    streamingDiv.appendChild(audioControlDiv);
+                    storyResultContainer.innerHTML = '';
+                    storyResultContainer.appendChild(streamingDiv);
+                }
+                
+                const storyTextDiv = document.getElementById('streamingStoryText');
+                storyTextDiv.innerHTML = '<h3>Generating story...</h3>';
+                
+                // Make API request to streaming endpoint
+                const response = await fetch('/api/stories/generate_streaming', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(storyRequest)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.status}`);
+                }
+                
+                // Set up event source for SSE
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let storyText = '';
+                
+                // --- MSE Setup ---
+                const audioElement = document.getElementById('streamingAudioPlayer');
+                if (!audioElement) {
+                    throw new Error("Cannot find streaming audio player element");
+                }
+                const mediaSource = new MediaSource();
+                audioElement.src = URL.createObjectURL(mediaSource);
+                let sourceBuffer = null;
+                let audioQueue = []; // Use queue temporarily before sourceBuffer is ready
+                let isAppending = false; // Flag to manage buffer appends
+                
+                mediaSource.addEventListener('sourceopen', () => {
+                    console.log('MediaSource opened');
+                    try {
+                        // Assuming MP3 audio from TTS providers
+                        sourceBuffer = mediaSource.addSourceBuffer('audio/mpeg'); 
+                        
+                        sourceBuffer.addEventListener('updateend', () => {
+                            isAppending = false;
+                            // If there's more in the queue, append it
+                            appendNextChunk(); 
+                        });
+                        
+                        sourceBuffer.addEventListener('error', (e) => {
+                            console.error('SourceBuffer error:', e);
+                        });
+                        
+                        // Process any chunks that arrived before sourceopen
+                        appendNextChunk();
+                        
+                    } catch (e) {
+                        console.error('Error adding SourceBuffer:', e);
+                    }
+                });
+                
+                mediaSource.addEventListener('sourceended', () => {
+                    console.log('MediaSource ended');
+                });
+                mediaSource.addEventListener('sourceclose', () => {
+                    console.log('MediaSource closed');
+                });
+                mediaSource.addEventListener('error', (e) => {
+                    console.error('MediaSource error:', e);
+                });
+                
+                // Function to append the next chunk from the queue
+                function appendNextChunk() {
+                    if (!isAppending && sourceBuffer && audioQueue.length > 0) {
+                        isAppending = true;
+                        const chunkToAppend = audioQueue.shift();
+                        try {
+                             sourceBuffer.appendBuffer(chunkToAppend);
+                             // Try to start playback if paused and haven't started
+                             if (audioElement.paused) {
+                                 audioElement.play().catch(e => console.warn("Autoplay prevented:", e));
+                             }
+                        } catch (e) {
+                            console.error('Error appending buffer:', e);
+                            isAppending = false; // Reset flag on error
+                        }
+                    }
+                }
+                // --- End MSE Setup ---
+                
+                // Process the stream
+                while (true) {
+                    const { done, value } = await reader.read();
+                    
+                    if (done) {
+                        console.log('Stream complete');
+                        // Signal end of stream to MediaSource when backend is done
+                        if (mediaSource.readyState === 'open' && sourceBuffer && !sourceBuffer.updating) {
+                            mediaSource.endOfStream();
+                        } else if (mediaSource.readyState === 'open' && sourceBuffer) {
+                            // If buffer is updating, wait for it to finish before ending
+                            sourceBuffer.addEventListener('updateend', () => {
+                                if (mediaSource.readyState === 'open') { // Check again in case it closed
+                                   mediaSource.endOfStream();
+                                }
+                            }, { once: true });
+                        }
+                        break;
+                    }
+                    
+                    // Process the chunk
+                    const chunk = decoder.decode(value, { stream: true });
+                    const events = chunk.split('\n\n').filter(Boolean);
+                    
+                    for (const event of events) {
+                        if (!event.startsWith('data: ')) continue;
+                        
+                        const jsonStr = event.slice(6);
+                        try {
+                            const eventData = JSON.parse(jsonStr);
+                            
+                            // Handle different event types
+                            switch (eventData.event) {
+                                case 'text':
+                                    // Append text chunk to story
+                                    storyText += eventData.data.chunk;
+                                    if (storyTextDiv) {
+                                        storyTextDiv.innerHTML = formatStoryText(storyText);
+                                        // Scroll to bottom
+                                        window.scrollTo(0, document.body.scrollHeight);
+                                    }
+                                    break;
+                                    
+                                case 'audio':
+                                    // Process audio chunk
+                                    const audioBase64 = eventData.data.chunk;
+                                    const audioBytes = base64ToArrayBuffer(audioBase64);
+                                    
+                                    // Add to temporary queue
+                                    audioQueue.push(audioBytes);
+                                    
+                                    // Attempt to append if sourceBuffer is ready and not busy
+                                    appendNextChunk();
+                                    break;
+                                    
+                                case 'complete':
+                                    // Story generation complete
+                                    document.getElementById('loadingContainer').style.display = 'none';
+                                    document.getElementById('progressBar').style.width = '100%';
+                                    
+                                    console.log('Story generation complete:', eventData.data);
+                                    break;
+                                    
+                                case 'error':
+                                    console.error('Error from server:', eventData.data.message);
+                                    throw new Error(eventData.data.message);
+                                    
+                                case 'metadata':
+                                    console.log('Story metadata:', eventData.data);
+                                    break;
+                                    
+                                default:
+                                    console.log('Unknown event type:', eventData);
+                            }
+                        } catch (error) {
+                            console.error('Error parsing event:', error, jsonStr);
+                        }
+                    }
+                }
+                
+                // Update UI now that story is complete
+                const loadingContainer = document.getElementById('loadingContainer');
+                if (loadingContainer) {
+                    loadingContainer.style.display = 'none';
+                }
+                
+            } catch (error) {
+                console.error('Error in streaming story generation:', error);
+                
+                // Clean up UI
+                const storyResultContainer = document.getElementById('storyResult');
+                if (storyResultContainer) {
+                    storyResultContainer.style.display = 'none';
+                }
+                
+                // Show error in UI
+                const loadingMessage = document.getElementById('loadingMessage');
+                if (loadingMessage) {
+                    loadingMessage.innerHTML = `<i class="fas fa-exclamation-circle text-danger"></i> Error: ${error.message}`;
+                }
+                
+                // Add a retry button
+                const loadingContainer = document.getElementById('loadingContainer');
+                if (loadingContainer) {
+                    // Show the loading container since we're displaying an error
+                    loadingContainer.style.display = 'block';
+                    
+                    // Add retry button if it doesn't exist
+                    if (!loadingContainer.querySelector('button.retry-btn')) {
+                        const retryBtn = document.createElement('button');
+                        retryBtn.className = 'btn btn-primary mt-3 retry-btn';
+                        retryBtn.innerHTML = '<i class="fas fa-sync-alt me-2"></i>Try Again';
+                        retryBtn.onclick = () => {
+                            document.getElementById('storyForm').style.display = 'block';
+                            loadingContainer.style.display = 'none';
+                            // Remove the retry button
+                            while (loadingContainer.querySelector('button')) {
+                                loadingContainer.querySelector('button').remove();
+                            }
+                        };
+                        loadingContainer.appendChild(retryBtn);
+                    }
+                }
+                
+                // Show error notification
+                showToast('Error generating story: ' + error.message, 'danger');
+                throw error; // Re-throw to be caught by the outer try-catch
+            }
+        }
+        
+        // Helper function to format the story text with paragraphs
+        function formatStoryText(text) {
+            // Split by newlines and wrap in paragraphs
+            return text.split('\n')
+                .filter(line => line.trim() !== '')
+                .map((line, index) => {
+                    // First line is typically the title
+                    if (index === 0 && !line.startsWith('Once upon a time')) {
+                        return `<h2>${line}</h2>`;
+                    }
+                    return `<p>${line}</p>`;
+                })
+                .join('');
+        }
+        
+        // Helper function to convert base64 to ArrayBuffer
+        function base64ToArrayBuffer(base64) {
+            const binaryString = window.atob(base64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            
+            return bytes.buffer;
         }
         
         // Function to simulate progress

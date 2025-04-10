@@ -8,7 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 import logging
 
-from app.endpoints import stories, audio, integrations, preferences
+from app.endpoints import stories, audio, integrations, preferences, streaming, esp32
 from app.db.database import Base, engine
 from app.config import TEMPLATES_DIR, STATIC_DIR, AUDIO_DIR, APP_NAME, DEBUG, BASE_DIR, DATABASE_URL, LOCAL_OPENAI_API_URL
 
@@ -119,7 +119,9 @@ app.add_middleware(
 app.include_router(stories.router, prefix="/api/stories", tags=["stories"])
 app.include_router(audio.router, prefix="/api/audio", tags=["audio"])
 app.include_router(integrations.router, prefix="/api/integrations", tags=["integrations"])
-app.include_router(preferences.router, prefix="/api/preferences", tags=["preferences"])
+##app.include_router(preferences.router, prefix="/api/preferences", tags=["preferences"])
+#app.include_router(streaming.router, prefix="/api/streaming", tags=["streaming"])
+app.include_router(esp32.router, prefix="/api/esp32", tags=["esp32"])
 
 @app.get("/")
 async def index(request: Request):
@@ -160,6 +162,12 @@ async def audio_debug_page(request: Request):
     """Audio debugging page for testing audio files"""
     logger.info("Audio debug page accessed")
     return templates.TemplateResponse("audio_debug.html", {"request": request})
+
+@app.get("/esp32")
+async def esp32_debug_page(request: Request):
+    """ESP32 control and debugging page"""
+    logger.info("ESP32 debug page accessed")
+    return templates.TemplateResponse("esp32_debug.html", {"request": request})
 
 # Run the application with uvicorn when this file is executed directly
 if __name__ == "__main__":

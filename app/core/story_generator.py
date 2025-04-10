@@ -252,7 +252,7 @@ class StoryGenerator:
             logger.error(f"Error generating story: {str(e)}", exc_info=True)
             raise
     
-    def generate_audio(self, story_id: Union[str, int]) -> str:
+    def generate_audio(self, story_id: Union[str, int]) -> Optional[str]:
         """
         Generate audio for a story
         

@@ -249,4 +249,63 @@ class AmazonPollyProvider(TTSProvider):
             'voices_available': len(self.get_available_voices()),
             'default_voice': self.voice_id,
             'aws_region': self.aws_region
-        } 
+        }
+
+    async def generate_audio_streaming(self, text: str, 
+                                      voice_id: Optional[str] = None, 
+                                      story_info: Optional[Dict[str, Any]] = None):
+        """
+        Generate audio from text in a streaming fashion
+        
+        Args:
+            text: The text to convert to speech
+            voice_id: Optional voice ID to use
+            story_info: Optional dictionary containing universe and title
+            
+        Returns:
+            Async generator yielding chunks of audio data as they're generated
+        """
+        import asyncio
+        
+        try:
+            # Use provided voice ID or default
+            selected_voice_id = voice_id or self.voice_id
+            
+            # Check if the voice_id looks like an ElevenLabs ID (not a valid Polly voice)
+            if selected_voice_id and len(selected_voice_id) > 10 and not selected_voice_id.isalpha():
+                logger.warning(f"Received what appears to be a non-Polly voice ID: {selected_voice_id}. Using default Polly voice instead.")
+                selected_voice_id = "Joanna"  # Fall back to default Polly voice
+            
+            logger.info(f"Using Amazon Polly voice for streaming: {selected_voice_id}")
+            
+            # Generate speech
+            response = await asyncio.to_thread(
+                self.polly.synthesize_speech,
+                Text=text,
+                OutputFormat='mp3',
+                VoiceId=selected_voice_id,
+                Engine='neural'  # Use neural engine for better quality
+            )
+            
+            # Stream the audio data
+            if "AudioStream" in response:
+                # Read the audio data in chunks
+                audio_stream = response['AudioStream']
+                chunk_size = 4096  # 4KB chunks
+                
+                # Read and yield chunks with small delays to simulate streaming
+                while chunk := audio_stream.read(chunk_size):
+                    yield chunk
+                    # Small delay to simulate real-time processing
+                    await asyncio.sleep(0.01)
+                
+                logger.info(f"Completed streaming audio from Amazon Polly")
+            else:
+                logger.error("No AudioStream found in response from Amazon Polly")
+                # Yield an empty chunk to prevent breaking the stream
+                yield b""
+                
+        except Exception as e:
+            logger.error(f"Error in streaming audio generation with Amazon Polly: {str(e)}")
+            # Yield an empty chunk to prevent breaking the stream
+            yield b"" 

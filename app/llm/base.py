@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Generator, AsyncGenerator
 import random
 import os
 from pathlib import Path
@@ -37,6 +37,19 @@ class LLMProvider(ABC):
             
         Returns:
             Dictionary containing the generated story text and the prompt used
+        """
+        pass
+    
+    @abstractmethod
+    async def generate_story_streaming(self, story_elements: Dict[str, Any]) -> AsyncGenerator[str, None]:
+        """
+        Generate a story with streaming output based on provided elements
+        
+        Args:
+            story_elements: Dictionary containing story elements (universe, setting, theme, etc.)
+            
+        Returns:
+            Async generator yielding chunks of the story text as they're generated
         """
         pass
     

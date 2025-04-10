@@ -1,8 +1,11 @@
 import anthropic
-from typing import Dict, Any
+from typing import Dict, Any, AsyncGenerator
+import logging
 
 from app.config import ANTHROPIC_API_KEY
 from app.llm.base import LLMProvider
+
+logger = logging.getLogger(__name__)
 
 class ClaudeProvider(LLMProvider):
     """
@@ -58,3 +61,39 @@ class ClaudeProvider(LLMProvider):
             "story_text": story_text,
             "prompt": prompt
         }
+    
+    async def generate_story_streaming(self, story_elements: Dict[str, Any]) -> AsyncGenerator[str, None]: # type: ignore
+        """
+        Generate a story based on provided elements using Claude with streaming
+        
+        Args:
+            story_elements: Dictionary containing story elements
+            
+        Returns:
+            Async generator yielding chunks of the story text as they're generated
+        """
+        # Create prompt using the base class method
+        prompt = self.create_story_prompt(story_elements)
+        
+        try:
+            logger.info(f"Calling Claude with streaming using model: {self.model}")
+            
+            # Call Claude API with streaming
+            with self.client.messages.stream(
+                model=self.model,
+                max_tokens=1500,
+                system="You are a skilled children's storyteller who creates engaging, "
+                       "age-appropriate bedtime stories for toddlers.",
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7
+            ) as stream:
+                # Process the stream
+                for text in stream.text_stream:
+                    yield text
+                    
+        except Exception as e:
+            logger.error(f"Error in streaming story generation with Claude: {str(e)}")
+            # Don't yield error message directly as it causes frontend issues
+            # The error will be handled by the endpoint's try-except block
