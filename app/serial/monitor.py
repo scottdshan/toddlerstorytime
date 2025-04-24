@@ -23,9 +23,6 @@ _monitoring_active = False
 # Global flag to track if a story is currently being generated
 _story_generation_in_progress = False
 
-# Default voice ID - can be configured through environment variables
-DEFAULT_VOICE_ID = "pNInz6obpgDQGcFmaJgB"  # Adam
-
 async def process_character_selection(selections: ESP32Selections) -> None:
     """
     Process character selections from the ESP32 JSON for all displays.
@@ -46,8 +43,7 @@ async def process_character_selection(selections: ESP32Selections) -> None:
     try:
         # Set the flag to indicate story generation in progress
         _story_generation_in_progress = True
-        voice_id = os.environ.get("ESP32_VOICE_ID", DEFAULT_VOICE_ID)
-        logger.info(f"Processing ESP32 selections - using voice ID: {voice_id}")
+        logger.info("Processing ESP32 selections...")
 
         # Convert all three display selections into a single story request
         story_request = esp32_selections_to_story_request(selections)
@@ -121,22 +117,4 @@ def stop_esp32_monitor() -> None:
         manager = get_esp32_manager()
         manager.disconnect()
     else:
-        logger.info("ESP32 monitoring not active")
-
-def set_voice_id(voice_id: str) -> None:
-    """
-    Set the voice ID to use for ESP32-initiated stories.
-    
-    Args:
-        voice_id: The ElevenLabs voice ID to use
-        
-    Note:
-        The ESP32 monitoring system is configured to handle only one
-        story generation at a time. If a new character selection is
-        received while a story is already being generated, the new
-        selection will be ignored. This prevents overlapping story
-        generations and ensures a complete story is generated before
-        starting a new one.
-    """
-    os.environ["ESP32_VOICE_ID"] = voice_id
-    logger.info(f"ESP32 voice ID set to: {voice_id}") 
+        logger.info("ESP32 monitoring not active") 

@@ -13,7 +13,7 @@ from typing import Dict, Any, Optional
 from pydantic import BaseModel
 
 from app.serial.esp32 import get_esp32_manager
-from app.serial.monitor import start_esp32_monitor, set_voice_id
+from app.serial.monitor import start_esp32_monitor
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -108,20 +108,4 @@ async def start_monitoring(background_tasks: BackgroundTasks):
     return {
         "status": "monitoring_started",
         "message": "ESP32 monitoring started in the background"
-    }
-
-@router.post("/set-voice")
-async def set_esp32_voice(request: VoiceIDRequest):
-    """
-    Set the voice ID to use for ESP32-initiated stories.
-    
-    Args:
-        request: The voice ID request containing the ElevenLabs voice ID
-    """
-    set_voice_id(request.voice_id)
-    
-    return {
-        "status": "voice_set",
-        "voice_id": request.voice_id,
-        "message": f"Voice ID for ESP32 stories set to: {request.voice_id}"
     } 
