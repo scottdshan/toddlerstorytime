@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 import logging
@@ -17,6 +18,30 @@ router = APIRouter()
 
 # Create a singleton instance of StoryGenerator (reuse if already created in stories.py)
 story_generator = StoryGenerator()
+
+@router.get("/file/{filename}")
+async def get_audio_file(filename: str):
+    """Serve a locally stored audio file."""
+    file_path = Path(AUDIO_DIR) / filename
+    logger.info(f"Attempting to serve audio file: {file_path}")
+
+    if not file_path.is_file():
+        logger.error(f"Audio file not found: {file_path}")
+        raise HTTPException(status_code=404, detail="Audio file not found")
+
+    # Prevent path traversal attacks
+    try:
+        # Ensure the resolved path is still within the intended AUDIO_DIR
+        common_path = os.path.commonpath([AUDIO_DIR.resolve(), file_path.resolve()])
+        if common_path != str(AUDIO_DIR.resolve()):
+            logger.error(f"Potential path traversal attempt: {filename}")
+            raise HTTPException(status_code=403, detail="Forbidden")
+    except ValueError:
+        # Handles cases where paths are on different drives (Windows)
+        logger.error(f"Path validation error for {filename}")
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    return FileResponse(file_path, media_type='audio/mpeg')
 
 @router.get("/voices")
 async def get_available_voices(provider: str = "elevenlabs"):

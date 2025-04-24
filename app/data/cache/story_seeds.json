@@ -1734,5 +1734,129 @@
       "emotion": "curious",
       "resolution": "creativity"
     }
+  ],
+  "Listening_Space": [
+    {
+      "problem": "helping each other becomes challenging when character helps someone in need",
+      "activity": "helping each other",
+      "emotion": "surprised",
+      "resolution": "working together"
+    },
+    {
+      "problem": "helping each other becomes challenging when character helps someone in need",
+      "activity": "helping each other",
+      "emotion": "unsure",
+      "resolution": "working together"
+    },
+    {
+      "problem": "While discovering something new, character learns about listening",
+      "activity": "discovering something new",
+      "emotion": "thoughtful",
+      "resolution": "making a new friend"
+    },
+    {
+      "problem": "While playing together, character learns about listening",
+      "activity": "playing together",
+      "emotion": "joyful",
+      "resolution": "helping someone"
+    },
+    {
+      "problem": "While exploring together, character learns about listening",
+      "activity": "exploring together",
+      "emotion": "amazed",
+      "resolution": "solving a problem"
+    },
+    {
+      "problem": "discovering something new becomes challenging when character overcomes a challenge together with friends",
+      "activity": "discovering something new",
+      "emotion": "unsure",
+      "resolution": "thinking creatively"
+    },
+    {
+      "problem": "While playing together, character learns about listening",
+      "activity": "playing together",
+      "emotion": "energetic",
+      "resolution": "solving a problem"
+    },
+    {
+      "problem": "exploring together becomes challenging when character learns something important about friendship",
+      "activity": "exploring together",
+      "emotion": "determined",
+      "resolution": "asking for help"
+    },
+    {
+      "problem": "helping each other becomes challenging when character overcomes a challenge together with friends",
+      "activity": "helping each other",
+      "emotion": "confused",
+      "resolution": "asking for help"
+    },
+    {
+      "problem": "While exploring together, character learns about listening",
+      "activity": "exploring together",
+      "emotion": "amazed",
+      "resolution": "helping someone"
+    }
+  ],
+  "Exploring_Underwater": [
+    {
+      "problem": "Character helps someone in need while helping each other",
+      "activity": "helping each other",
+      "emotion": "worried",
+      "resolution": "bravery"
+    },
+    {
+      "problem": "While helping each other, character learns about exploring",
+      "activity": "helping each other",
+      "emotion": "energetic",
+      "resolution": "helping someone"
+    },
+    {
+      "problem": "While discovering something new, character learns about exploring",
+      "activity": "discovering something new",
+      "emotion": "thoughtful",
+      "resolution": "sharing with others"
+    },
+    {
+      "problem": "Character overcomes a challenge together with friends while playing together",
+      "activity": "playing together",
+      "emotion": "worried",
+      "resolution": "perseverance"
+    },
+    {
+      "problem": "While discovering something new, character learns about exploring",
+      "activity": "discovering something new",
+      "emotion": "amazed",
+      "resolution": "solving a problem"
+    },
+    {
+      "problem": "playing together becomes challenging when character overcomes a challenge together with friends",
+      "activity": "playing together",
+      "emotion": "unsure",
+      "resolution": "asking for help"
+    },
+    {
+      "problem": "Character helps someone in need while helping each other",
+      "activity": "helping each other",
+      "emotion": "nervous",
+      "resolution": "teamwork"
+    },
+    {
+      "problem": "Character helps someone in need while playing together",
+      "activity": "playing together",
+      "emotion": "curious",
+      "resolution": "kindness"
+    },
+    {
+      "problem": "discovering something new becomes challenging when character learns something important about friendship",
+      "activity": "discovering something new",
+      "emotion": "determined",
+      "resolution": "being patient"
+    },
+    {
+      "problem": "While discovering something new, character learns about exploring",
+      "activity": "discovering something new",
+      "emotion": "energetic",
+      "resolution": "learning something new"
+    }
   ]
 }

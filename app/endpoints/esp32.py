@@ -7,15 +7,21 @@ with an ESP32 device that selects story characters.
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
+from fastapi import Body
 import logging
 from typing import Dict, Any, Optional
 from pydantic import BaseModel
 
-from app.serial.esp32 import get_esp32_manager, CHARACTER_MAPPING
+from app.serial.esp32 import get_esp32_manager
 from app.serial.monitor import start_esp32_monitor, set_voice_id
 
 # Set up logger
 logger = logging.getLogger(__name__)
+
+# Options available on each display
+AVAILABLE_CHARACTERS = ["Rubble", "Skye", "Marshall"]
+AVAILABLE_SETTINGS   = ["Space", "Playground", "Underwater"]
+AVAILABLE_THEMES     = ["Listening", "Sleeping", "Exploring"]
 
 router = APIRouter()
 
@@ -37,12 +43,14 @@ async def get_esp32_status():
         "connected": is_connected,
         "port": manager.port if is_connected else None,
         "available_ports": available_ports,
-        "available_characters": list(CHARACTER_MAPPING.values()),
+        "available_characters": AVAILABLE_CHARACTERS,
+        "available_settings": AVAILABLE_SETTINGS,
+        "available_themes": AVAILABLE_THEMES,
         "message": "ESP32 connected" if is_connected else "ESP32 not connected"
     }
 
 @router.post("/connect")
-async def connect_esp32(port: Optional[str] = None):
+async def connect_esp32(port: Optional[str] = Body(None, embed=True)):
     """
     Connect to an ESP32 device.
     

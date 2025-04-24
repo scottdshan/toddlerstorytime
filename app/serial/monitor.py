@@ -11,8 +11,8 @@ import os
 from typing import Optional, Dict, Any
 import httpx
 
-from app.serial.esp32 import get_esp32_manager, ESP32Selection
-from app.serial.converter import esp32_selection_to_story_request
+from app.serial.esp32 import get_esp32_manager, ESP32Selections
+from app.serial.converter import esp32_selection_to_story_request, esp32_selections_to_story_request
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -26,64 +26,49 @@ _story_generation_in_progress = False
 # Default voice ID - can be configured through environment variables
 DEFAULT_VOICE_ID = "pNInz6obpgDQGcFmaJgB"  # Adam
 
-async def process_character_selection(selection: ESP32Selection) -> None:
+async def process_character_selection(selections: ESP32Selections) -> None:
     """
-    Process a character selection from the ESP32.
+    Process character selections from the ESP32 JSON for all displays.
     
     This function converts the character selection into a story request
     and sends it to the story generation endpoint.
     
     Args:
-        selection: The ESP32 character selection
+        selections: The ESP32 selections
     """
     global _story_generation_in_progress
     
     # Check if a story generation is already in progress
     if _story_generation_in_progress:
-        logger.info(f"Ignoring character selection for {selection.character_name} - story generation already in progress")
+        logger.info("Ignoring new ESP32 selections - story generation already in progress")
         return
     
     try:
-        # Set the flag to indicate a story is being generated
+        # Set the flag to indicate story generation in progress
         _story_generation_in_progress = True
-        
-        logger.info(f"Processing character selection: {selection.character_name} (index: {selection.character_index})")
-        
-        # Get voice ID from environment or use default
         voice_id = os.environ.get("ESP32_VOICE_ID", DEFAULT_VOICE_ID)
-        logger.info(f"Using voice ID: {voice_id}")
-        
-        # Convert to story elements request
-        story_request = esp32_selection_to_story_request(selection.character_name)
-        
-        # Override voice ID from environment if available
-        if voice_id:
-            story_request.voice_id = voice_id
-        
-        # Use httpx to make an async request to the story endpoint
-        # We use the local API to avoid circular dependencies
+        logger.info(f"Processing ESP32 selections - using voice ID: {voice_id}")
+
+        # Convert all three display selections into a single story request
+        story_request = esp32_selections_to_story_request(selections)
         async with httpx.AsyncClient() as client:
-            logger.info(f"Sending story request for character: {selection.character_name}")
-            
-            # Use the regular story generation endpoint instead of streaming
-            response = await client.post(
-                "http://localhost:8000/api/stories/generate",
-                json=story_request.dict(),
-                timeout=120.0  # Longer timeout for story generation
-            )
-            
-            if response.status_code != 201:
-                logger.error(f"Failed to generate story: {response.text}")
-            else:
-                logger.info(f"Successfully generated story for {selection.character_name}")
-                story_data = response.json()
-                story_id = story_data.get("id")
-                logger.info(f"Story generated with ID: {story_id}")
-                
+            try:
+                response = await client.post(
+                    "http://localhost:8000/api/stories/generate",
+                    json=story_request.dict(),
+                    timeout=120.0
+                )
+                if response.status_code != 201:
+                    logger.error(f"Failed to generate story: {response.text}")
+                else:
+                    story_data = response.json()
+                    story_id = story_data.get("id")
+                    logger.info(f"Successfully generated story with ID: {story_id}")
+            except Exception as inner_e:
+                logger.error(f"Error generating story: {inner_e}", exc_info=True)
     except Exception as e:
-        logger.error(f"Error processing character selection: {str(e)}", exc_info=True)
+        logger.error(f"Error processing ESP32 selections: {e}", exc_info=True)
     finally:
-        # Reset the flag to allow new story generations
         _story_generation_in_progress = False
         logger.info("Story generation completed, ready for new requests")
 

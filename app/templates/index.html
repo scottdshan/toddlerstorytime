@@ -347,7 +347,14 @@
                     $('.play-locally').click(function() {
                         const audioPath = $(this).data('audio-path');
                         const storyTitle = $(this).data('story-title') || 'Story';
-                        playAudioGlobal(audioPath, storyTitle);
+                        // Extract filename from path (assuming path is like 'audio/filename.mp3')
+                        const filename = audioPath.split('/').pop();
+                        if (filename) {
+                            const localAudioUrl = `/api/audio/file/${filename}`;
+                            playAudioGlobal(localAudioUrl, storyTitle);
+                        } else {
+                            showToast('Invalid audio path', 'danger');
+                        }
                     });
                     
                     // Add event listener for Home Assistant play button
@@ -523,10 +530,10 @@
                             <div class="card bg-light mb-3">
                                 <div class="card-body">
                                     <h5 class="mb-3"><i class="fas fa-headphones me-2"></i> Audio</h5>
-                                    <button class="btn btn-primary mb-2 play-in-global" onclick="playAudioGlobal('${story.audio_path}', '${story.title || 'Story'}')">
+                                    <button class="btn btn-primary mb-2 play-in-global" onclick="playAudioGlobal(\`/api/audio/file/\${story.audio_path.split('/').pop()}\`, \'\${story.title || 'Story'}\')">
                                         <i class="fas fa-play me-1"></i> Play Audio
                                     </button>
-                                    <audio controls class="w-100 mt-2" src="/static/${story.audio_path}"></audio>
+                                    <audio controls class="w-100 mt-2" src="/api/audio/file/${story.audio_path.split('/').pop()}"></audio>
                                 </div>
                             </div>
                         `;

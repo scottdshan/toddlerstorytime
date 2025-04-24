@@ -7,6 +7,8 @@ and the full story generation request format.
 
 from typing import Dict, Any
 from app.schemas.story import StoryGenRequest, StoryCharacterInput
+import os
+from app.serial.esp32 import ESP32Selections
 
 def esp32_selection_to_story_request(character_name: str) -> StoryGenRequest:
     """
@@ -52,4 +54,23 @@ def esp32_selection_to_story_request(character_name: str) -> StoryGenRequest:
         llm_provider="openai", # Use default provider
         tts_provider="elevenlabs", # Use default TTS provider
         voice_id=voice_id     # Specify a voice ID
+    )
+
+def esp32_selections_to_story_request(selections: ESP32Selections) -> StoryGenRequest:
+    """
+    Convert ESP32Selections JSON into a StoryGenRequest with character, setting, and theme.
+    """
+    # Build the story request using selections from each display
+    character = StoryCharacterInput(character_name=selections.display1.name)
+    return StoryGenRequest(
+        universe="Paw Patrol",
+        setting=selections.display2.name,
+        theme=selections.display3.name,
+        story_length="short",
+        characters=[character],
+        child_name=os.environ.get("CHILD_NAME", "Wesley"),
+        randomize=False,
+        llm_provider=os.environ.get("LLM_PROVIDER", "openai"),
+        tts_provider=os.environ.get("TTS_PROVIDER", "elevenlabs"),
+        voice_id=os.environ.get("ESP32_VOICE_ID")
     ) 

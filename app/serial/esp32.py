@@ -9,22 +9,21 @@ import serial.tools.list_ports
 import asyncio
 import logging
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
+import json
 
 logger = logging.getLogger(__name__)
 
-# Character mapping from ESP32 indices to story character names
-CHARACTER_MAPPING = {
-    0: "Rubble",
-    1: "Skye",
-    2: "Marshall",
-    # Add more characters as needed
-}
+class DisplaySelection(BaseModel):
+    """Model for a single display selection from the ESP32 JSON."""
+    index: int
+    name: str
 
-class ESP32Selection(BaseModel):
-    """Model representing a selection from the ESP32 device."""
-    character_index: int
-    character_name: str
+class ESP32Selections(BaseModel):
+    """Model representing selections from all displays via JSON."""
+    display1: DisplaySelection
+    display2: DisplaySelection
+    display3: DisplaySelection
 
 class ESP32SerialManager:
     """Manages serial communication with an ESP32 device."""
@@ -94,36 +93,40 @@ class ESP32SerialManager:
             self.serial_conn.close()
             logger.info("Disconnected from ESP32")
     
-    def read_selection(self) -> Optional[ESP32Selection]:
+    def read_selection(self) -> Optional[ESP32Selections]:
         """
-        Read a character selection from the ESP32.
+        Read JSON-formatted selections from the ESP32.
         
         Returns:
-            ESP32Selection object if successful, None otherwise.
+            ESP32Selections object if successful, None otherwise.
         """
         if not self.serial_conn or not self.serial_conn.is_open:
             logger.error("Not connected to ESP32")
             return None
         
+        # Initialize line to ensure it's always defined
+        line: str = ""
+        
         try:
-            # Read a line from the serial port
-            line = self.serial_conn.readline().decode('utf-8').strip()
-            
-            # Example format: "Selected image index sent: 1"
-            if "Selected image index sent" in line:
-                # Extract the index
-                parts = line.split(":")
-                if len(parts) >= 2:
-                    try:
-                        index = int(parts[1].strip())
-                        character_name = CHARACTER_MAPPING.get(index, f"Character_{index}")
-                        return ESP32Selection(character_index=index, character_name=character_name)
-                    except ValueError:
-                        logger.error(f"Failed to parse index from line: {line}")
-            
-            return None
+            # Read a line from the serial port and decode it
+            raw = self.serial_conn.readline()
+            line = raw.decode('utf-8').strip()
         except Exception as e:
-            logger.error(f"Error reading from ESP32: {str(e)}")
+            logger.error(f"Error reading line from serial: {e}")
+            return None
+
+        if not line:
+            return None
+
+        # Parse JSON and validate
+        try:
+            data = json.loads(line)
+            return ESP32Selections.parse_obj(data)
+        except json.JSONDecodeError:
+            logger.error(f"Failed to decode JSON from line: {line}")
+            return None
+        except ValidationError as e:
+            logger.error(f"JSON validation error: {e}")
             return None
     
     async def monitor_serial(self, callback) -> None:
