@@ -301,13 +301,8 @@ class PiperProvider(TTSProvider):
             if not voices:
                 voices = [
                     {
-                        "voice_id": "en_US-lessac-medium",
-                        "name": "English US (Lessac, Medium)",
-                        "language": "en_US"
-                    },
-                    {
-                        "voice_id": "en_GB-alba-medium",
-                        "name": "English GB (Alba, Medium)",
+                        "voice_id": "en_GB-northern_english_male-medium",
+                        "name": "Northern English Male (Medium)",
                         "language": "en_GB"
                     }
                 ]
