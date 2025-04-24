@@ -206,16 +206,24 @@ class PiperProvider(TTSProvider):
                 # Log the command being executed
                 logger.info(f"Executing piper command: {' '.join(cmd)}")
                 
-                # Log environment variables
-                logger.info(f"LD_LIBRARY_PATH: {os.environ.get('LD_LIBRARY_PATH', 'not set')}")
+                # Prepare environment variables, specifically LD_LIBRARY_PATH
+                piper_dir = os.path.dirname(self.piper_path)
+                current_env = os.environ.copy()
+                # Prepend piper directory to LD_LIBRARY_PATH
+                # Handle case where LD_LIBRARY_PATH might already exist
+                current_env['LD_LIBRARY_PATH'] = f"{piper_dir}:{current_env.get('LD_LIBRARY_PATH', '')}".strip(':')
                 
-                # Execute Piper with JSON input directly to stdin
+                # Log environment variables being passed
+                logger.info(f"Passing LD_LIBRARY_PATH: {current_env['LD_LIBRARY_PATH']}")
+                
+                # Execute Piper with JSON input directly to stdin and updated env
                 result = subprocess.run(
                     cmd,
                     input=json_line,
                     capture_output=True,
                     text=True,
-                    check=True
+                    check=True,
+                    env=current_env # Pass the modified environment
                 )
                 
                 logger.info(f"Generated audio file at {local_file_path}")
