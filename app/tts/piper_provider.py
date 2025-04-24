@@ -5,7 +5,7 @@ import re
 import glob
 import subprocess
 import json
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, AsyncGenerator
 from pathlib import Path
 
 from app.tts.base import TTSProvider
@@ -229,7 +229,10 @@ class PiperProvider(TTSProvider):
                     except Exception as e:
                         logger.error(f"Failed to save to network share: {e}")
                 
-                return local_url_path.replace('/static/', '')
+                # Return the proper path that works with the audio endpoint
+                # Instead of "audio/filename.wav", return just the filename
+                # that will be used with the /api/audio/file/{filename} endpoint
+                return filename
                 
             except Exception as e:
                 logger.error(f"Error in Piper audio generation: {e}", exc_info=True)
@@ -334,9 +337,9 @@ class PiperProvider(TTSProvider):
 
     async def generate_audio_streaming(self, text: str, 
                                       voice_id: Optional[str] = None, 
-                                      story_info: Optional[Dict[str, Any]] = None):
+                                      story_info: Optional[Dict[str, Any]] = None) -> AsyncGenerator[bytes, None]:
         """
-        Generate audio from text in a streaming fashion0
+        Generate audio from text in a streaming fashion
         
         Args:
             text: The text to convert to speech
