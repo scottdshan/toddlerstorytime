@@ -173,3 +173,43 @@ async def esp32_debug_page(request: Request):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+
+# Add startup event handler to auto-connect to ESP32
+@app.on_event("startup")
+async def startup_event():
+    """
+    Runs when the application starts up.
+    Attempts to automatically connect to ESP32 and start monitoring.
+    """
+    try:
+        # Import here to avoid circular imports
+        from app.serial.esp32 import get_esp32_manager
+        from app.serial.monitor import start_esp32_monitor
+        from fastapi import BackgroundTasks
+        import asyncio
+        
+        # Get ESP32 manager
+        manager = get_esp32_manager()
+        
+        # Try to auto-connect
+        if manager.connect():
+            logger.info("Auto-connected to ESP32 at startup")
+            
+            # Start monitoring in background
+            background_tasks = BackgroundTasks()
+            background_tasks.add_task(start_esp32_monitor)
+            
+            # Execute the task by creating a new event loop and running it
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(start_esp32_monitor())
+            except Exception as e:
+                logger.error(f"Error starting ESP32 monitor: {e}")
+            finally:
+                loop.close()
+        else:
+            logger.info("Could not auto-connect to ESP32 at startup")
+    except Exception as e:
+        logger.error(f"Error setting up ESP32 at startup: {str(e)}", exc_info=True)
+        # Non-fatal error, application should still start

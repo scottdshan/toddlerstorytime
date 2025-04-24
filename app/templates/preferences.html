@@ -140,6 +140,11 @@
                     <i class="fas fa-hdd me-2"></i>Storage
                 </button>
             </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="esp32-tab" data-bs-toggle="tab" data-bs-target="#esp32" type="button" role="tab" aria-controls="esp32" aria-selected="false">
+                    <i class="fas fa-microchip me-2"></i>ESP32
+                </button>
+            </li>
         </ul>
         
         <div class="tab-content" id="preferencesTabContent">
@@ -340,30 +345,30 @@
                 </div>
             </div>
             
-            <!-- Storage Settings Tab -->
+            <!-- Storage Tab -->
             <div class="tab-pane fade" id="storage" role="tabpanel" aria-labelledby="storage-tab">
                 <div class="card">
                     <div class="card-header">
-                        <h3 class="h5 mb-0">Storage Settings</h3>
+                        <h3 class="h5 mb-0">Audio Storage Settings</h3>
                     </div>
                     <div class="card-body">
                         <form id="storage-settings-form">
                             <div class="mb-3">
-                                <label for="audio_dir" class="form-label">Audio Files Directory</label>
-                                <input type="text" class="form-control" id="audio_dir" name="audio_dir" placeholder="Leave blank for default">
-                                <div class="form-text">Path where audio files will be stored. Default: app/static/audio</div>
+                                <label for="audio_dir" class="form-label">Local Audio Directory</label>
+                                <input type="text" class="form-control" id="audio_dir" name="audio_dir">
+                                <div class="form-text">Location to store audio files locally.</div>
                             </div>
                             
                             <div class="mb-3">
                                 <label for="network_share_path" class="form-label">Network Share Path</label>
-                                <input type="text" class="form-control" id="network_share_path" name="network_share_path" placeholder="Leave blank for default">
-                                <div class="form-text">Path to network share for Home Assistant integration</div>
+                                <input type="text" class="form-control" id="network_share_path" name="network_share_path">
+                                <div class="form-text">Network share path for audio files (e.g., \\server\music\storyteller).</div>
                             </div>
                             
                             <div class="mb-3">
                                 <label for="network_share_url" class="form-label">Network Share URL</label>
-                                <input type="text" class="form-control" id="network_share_url" name="network_share_url" placeholder="Leave blank for default">
-                                <div class="form-text">URL to access network share files from Home Assistant</div>
+                                <input type="text" class="form-control" id="network_share_url" name="network_share_url">
+                                <div class="form-text">HTTP URL to access network shared files (e.g., http://server/music/storyteller).</div>
                             </div>
                             
                             <button type="submit" class="btn btn-primary">Save Storage Settings</button>
@@ -371,6 +376,83 @@
                     </div>
                 </div>
             </div>
+            
+            <!-- ESP32 Tab -->
+            <div class="tab-pane fade" id="esp32" role="tabpanel" aria-labelledby="esp32-tab">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h3 class="h5 mb-0">ESP32 Status</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3" id="esp32-status-container">
+                            <div class="d-flex align-items-center">
+                                <div class="spinner-border text-primary me-2" role="status" id="esp32-status-spinner">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <span id="esp32-status-message">Checking ESP32 status...</span>
+                            </div>
+                        </div>
+                        <div id="esp32-status-details" class="d-none">
+                            <p><strong>Port:</strong> <span id="esp32-port-info">N/A</span></p>
+                            <p><strong>Characters:</strong> <span id="esp32-character-info">N/A</span></p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h3 class="h5 mb-0">ESP32 Connection</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="esp32-port-select" class="form-label">Select Port:</label>
+                            <select class="form-select" id="esp32-port-select">
+                                <option value="">Auto-detect</option>
+                            </select>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-primary" id="esp32-connect-btn">Connect</button>
+                            <button class="btn btn-danger" id="esp32-disconnect-btn">Disconnect</button>
+                            <button class="btn btn-success" id="esp32-start-monitor-btn">Start Monitoring</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="h5 mb-0">Test Story Generation</h3>
+                    </div>
+                    <div class="card-body">
+                        <p>Manually simulate character selection to test the story generation functionality.</p>
+                        <div class="mb-3">
+                            <label for="esp32-character-select" class="form-label">Select Character:</label>
+                            <select class="form-select" id="esp32-character-select">
+                                <option value="Skye">Skye</option>
+                                <option value="Rubble">Rubble</option>
+                                <option value="Marshall">Marshall</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="esp32-voice-select" class="form-label">Select Voice:</label>
+                            <select class="form-select" id="esp32-voice-select">
+                                <option value="pNInz6obpgDQGcFmaJgB">Adam (Default)</option>
+                                <option value="EXAVITQu4vr4xnSDxMaL">Rachel</option>
+                                <option value="MF3mGyEYCl7XYWbV9V6O">Domi</option>
+                                <option value="yoZ06aMxZJJ28mfd3POQ">Sam</option>
+                                <option value="jBpfuIE2acCO8z3wKNLl">Bella</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary" id="esp32-test-btn">Test Generate Story</button>
+                        <div id="esp32-story-result" class="mt-3 d-none">
+                            <div class="alert alert-success">
+                                <p id="esp32-story-message"></p>
+                                <a id="esp32-story-link" href="#" class="btn btn-primary mt-2">View Story</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
         </div>
     </div>
 </div>
@@ -436,6 +518,15 @@
         // Add event listener for test connection button
         document.getElementById('test-connection-btn').addEventListener('click', function() {
             testLocalConnection();
+        });
+        
+        // Check ESP32 status and auto-connect on page load
+        window.addEventListener('load', function() {
+            // If ESP32 tab exists, set up ESP32 functionality
+            if (document.getElementById('esp32-tab')) {
+                setupESP32Functionality();
+                checkESP32Status(true); // Auto-connect if possible
+            }
         });
     });
     
@@ -973,6 +1064,229 @@
     // Function to show a toast notification (using alert for now)
     function showToast(message, type) {
         showAlert(type, message);
+    }
+    
+    // Add ESP32 functionality
+    function setupESP32Functionality() {
+        // ESP32 tab activation handler
+        document.getElementById('esp32-tab').addEventListener('click', function() {
+            checkESP32Status();
+        });
+        
+        // ESP32 button handlers
+        document.getElementById('esp32-connect-btn').addEventListener('click', connectESP32);
+        document.getElementById('esp32-disconnect-btn').addEventListener('click', disconnectESP32);
+        document.getElementById('esp32-start-monitor-btn').addEventListener('click', startESP32Monitoring);
+        document.getElementById('esp32-test-btn').addEventListener('click', testESP32StoryGeneration);
+    }
+    
+    // Check ESP32 status
+    async function checkESP32Status(autoConnect = false) {
+        try {
+            const statusSpinner = document.getElementById('esp32-status-spinner');
+            const statusMessage = document.getElementById('esp32-status-message');
+            const statusDetails = document.getElementById('esp32-status-details');
+            
+            // Show spinner
+            statusSpinner.classList.remove('d-none');
+            statusMessage.textContent = 'Checking ESP32 status...';
+            statusDetails.classList.add('d-none');
+            
+            const response = await fetch('/api/esp32/status');
+            const data = await response.json();
+            
+            // Update port select
+            const portSelect = document.getElementById('esp32-port-select');
+            portSelect.innerHTML = '<option value="">Auto-detect</option>';
+            
+            data.available_ports.forEach(port => {
+                const option = document.createElement('option');
+                option.value = port;
+                option.textContent = port;
+                portSelect.appendChild(option);
+            });
+            
+            // Update status display
+            statusSpinner.classList.add('d-none');
+            
+            if (data.connected) {
+                statusMessage.textContent = 'ESP32 is connected';
+                statusMessage.classList.add('text-success');
+                document.getElementById('esp32-port-info').textContent = data.port;
+                document.getElementById('esp32-character-info').textContent = data.available_characters.join(', ');
+                statusDetails.classList.remove('d-none');
+                
+                // If we're connected, auto-start monitoring
+                if (autoConnect) {
+                    console.log("ESP32 connected at startup, auto-starting monitoring");
+                    startESP32Monitoring();
+                }
+            } else {
+                statusMessage.textContent = 'ESP32 is not connected';
+                statusMessage.classList.add('text-danger');
+                statusDetails.classList.add('d-none');
+                
+                // If auto-connect is requested and we have ports, attempt to connect
+                if (autoConnect && data.available_ports.length > 0) {
+                    console.log("Auto-connecting to ESP32");
+                    await connectESP32();
+                    // After connecting, check status again (without auto-connect to avoid loop)
+                    setTimeout(() => checkESP32Status(false), 1000);
+                }
+            }
+        } catch (error) {
+            console.error('Error checking ESP32 status:', error);
+            document.getElementById('esp32-status-spinner').classList.add('d-none');
+            document.getElementById('esp32-status-message').textContent = 'Error checking ESP32 status';
+            document.getElementById('esp32-status-message').className = 'text-danger';
+        }
+    }
+    
+    // Connect to ESP32
+    async function connectESP32() {
+        try {
+            const portSelect = document.getElementById('esp32-port-select');
+            const port = portSelect.value;
+            
+            document.getElementById('esp32-connect-btn').disabled = true;
+            document.getElementById('esp32-status-message').textContent = 'Connecting...';
+            
+            const response = await fetch('/api/esp32/connect', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ port: port || null })
+            });
+            
+            const data = await response.json();
+            showToast(data.message, data.connected ? 'success' : 'danger');
+            
+            document.getElementById('esp32-connect-btn').disabled = false;
+            
+            // Refresh status
+            checkESP32Status();
+        } catch (error) {
+            console.error('Error connecting to ESP32:', error);
+            showToast('Failed to connect to ESP32', 'danger');
+            document.getElementById('esp32-connect-btn').disabled = false;
+            checkESP32Status();
+        }
+    }
+    
+    // Disconnect from ESP32
+    async function disconnectESP32() {
+        try {
+            document.getElementById('esp32-disconnect-btn').disabled = true;
+            
+            const response = await fetch('/api/esp32/disconnect', {
+                method: 'POST'
+            });
+            
+            const data = await response.json();
+            showToast(data.message, 'info');
+            
+            document.getElementById('esp32-disconnect-btn').disabled = false;
+            
+            // Refresh status
+            checkESP32Status();
+        } catch (error) {
+            console.error('Error disconnecting from ESP32:', error);
+            showToast('Failed to disconnect from ESP32', 'danger');
+            document.getElementById('esp32-disconnect-btn').disabled = false;
+            checkESP32Status();
+        }
+    }
+    
+    // Start monitoring ESP32
+    async function startESP32Monitoring() {
+        try {
+            document.getElementById('esp32-start-monitor-btn').disabled = true;
+            
+            const response = await fetch('/api/esp32/start-monitoring', {
+                method: 'POST'
+            });
+            
+            const data = await response.json();
+            showToast(data.message, 'success');
+            
+            document.getElementById('esp32-start-monitor-btn').disabled = false;
+        } catch (error) {
+            console.error('Error starting ESP32 monitoring:', error);
+            showToast('Failed to start ESP32 monitoring', 'danger');
+            document.getElementById('esp32-start-monitor-btn').disabled = false;
+        }
+    }
+    
+    // Test ESP32 story generation
+    async function testESP32StoryGeneration() {
+        try {
+            const character = document.getElementById('esp32-character-select').value;
+            const voiceId = document.getElementById('esp32-voice-select').value;
+            
+            // Disable the button and show loading state
+            const testBtn = document.getElementById('esp32-test-btn');
+            const originalText = testBtn.textContent;
+            testBtn.disabled = true;
+            testBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Generating...';
+            
+            // Create a story request based on the selected character
+            const storyRequest = {
+                universe: "Paw Patrol",
+                setting: character === "Skye" ? "Sky High" : 
+                         character === "Rubble" ? "Construction Site" : 
+                         character === "Marshall" ? "Fire Station" : "Adventure Bay",
+                theme: character === "Skye" ? "flying rescue" : 
+                       character === "Rubble" ? "building adventure" : 
+                       character === "Marshall" ? "fire rescue" : "rescue mission",
+                story_length: "short",
+                characters: [{ character_name: character }],
+                child_name: document.getElementById('child_name').value || "Wesley",
+                randomize: false,
+                llm_provider: document.getElementById('llm_provider').value || "openai",
+                tts_provider: document.getElementById('tts_provider').value || "elevenlabs",
+                voice_id: voiceId
+            };
+            
+            // Send the story request
+            const response = await fetch('/api/stories/generate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(storyRequest)
+            });
+            
+            // Reset button state
+            testBtn.disabled = false;
+            testBtn.textContent = originalText;
+            
+            if (response.status === 201) {
+                const storyData = await response.json();
+                
+                // Show success message
+                const storyResult = document.getElementById('esp32-story-result');
+                const storyMessage = document.getElementById('esp32-story-message');
+                const storyLink = document.getElementById('esp32-story-link');
+                
+                storyMessage.textContent = `Story generated successfully! Title: ${storyData.title}`;
+                storyLink.href = `/stories/${storyData.id}`;
+                storyResult.classList.remove('d-none');
+                
+                showToast(`Story "${storyData.title}" generated successfully!`, 'success');
+            } else {
+                const errorData = await response.json();
+                showToast(`Failed to generate story: ${errorData.detail || 'Unknown error'}`, 'danger');
+                
+                document.getElementById('esp32-story-result').classList.add('d-none');
+            }
+        } catch (error) {
+            console.error('Error testing story generation:', error);
+            showToast('Error generating story', 'danger');
+            document.getElementById('esp32-test-btn').disabled = false;
+            document.getElementById('esp32-test-btn').textContent = 'Test Generate Story';
+            document.getElementById('esp32-story-result').classList.add('d-none');
+        }
     }
 </script>
 {% endblock %} 

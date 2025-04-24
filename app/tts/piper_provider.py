@@ -32,7 +32,7 @@ class PiperProvider(TTSProvider):
         self.voice_id = voice_id or "en_US-lessac-medium"
         
         # Get Piper executable path from environment or use default
-        self.piper_path = os.environ.get("PIPER_PATH", os.path.expanduser("~/piper/piper"))
+        self.piper_path = os.path.expanduser(os.environ.get("PIPER_PATH", "~/piper/piper"))
         logger.info(f"Using Piper executable at: {self.piper_path}")
         
         # Check if the piper executable exists
