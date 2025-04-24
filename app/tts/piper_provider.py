@@ -31,27 +31,37 @@ class PiperProvider(TTSProvider):
         # Set default voice ID if not provided
         self.voice_id = voice_id or "en_US-lessac-medium"
         
-        # Get Piper executable path from environment or use default
-        self.piper_path = os.path.expanduser(os.environ.get("PIPER_PATH", "~/piper/piper"))
-        logger.info(f"Using Piper executable at: {self.piper_path}")
+        # Get Piper base directory from environment or use default
+        piper_base_dir = os.path.expanduser(os.environ.get("PIPER_DIR", "~/piper"))
+        logger.info(f"Using Piper base directory: {piper_base_dir}")
+
+        # Construct the expected path to the executable within the base directory
+        self.piper_path = os.path.join(piper_base_dir, "piper")
+        logger.info(f"Expected Piper executable path: {self.piper_path}")
         
-        # Check if the piper executable exists
-        if not os.path.exists(self.piper_path):
-            logger.warning(f"Piper executable not found at {self.piper_path}. Make sure it's installed properly.")
-            
-            # Try fallback to home dir
-            piper_in_home = os.path.expanduser("~/piper/piper")
-            if os.path.exists(piper_in_home):
-                logger.info(f"Found Piper executable in home directory: {piper_in_home}")
-                self.piper_path = piper_in_home
+        # Check if the piper executable exists at the constructed path
+        if not os.path.exists(self.piper_path) or not os.path.isfile(self.piper_path):
+            logger.warning(f"Piper executable not found or is not a file at {self.piper_path}. Please check installation or set PIPER_DIR env var.")
+            # Attempt fallback if PIPER_PATH env var exists (legacy support?)
+            legacy_piper_path = os.path.expanduser(os.environ.get("PIPER_PATH", ""))
+            if legacy_piper_path and os.path.exists(legacy_piper_path) and os.path.isfile(legacy_piper_path):
+                 logger.info(f"Falling back to PIPER_PATH environment variable: {legacy_piper_path}")
+                 self.piper_path = legacy_piper_path
+            else:
+                 # If neither works, log error, but continue in case it's in system PATH (handled by subprocess)
+                 logger.error(f"Could not definitively locate piper executable. Will rely on system PATH if possible.")
+                 # Set a default value anyway, maybe it's in PATH
+                 self.piper_path = "piper" 
+        else:
+            logger.info(f"Found Piper executable at: {self.piper_path}")
         
         # Allow specifying an exact path to the voice model file
         self.voice_model_path = os.environ.get("PIPER_VOICE_MODEL_PATH")
         if self.voice_model_path:
             logger.info(f"Using specific voice model path from environment: {self.voice_model_path}")
         
-        # Get models directory from environment or use default
-        self.models_dir = os.environ.get("PIPER_MODELS_DIR", os.path.expanduser("~/piper"))
+        # Get models directory from environment or use default (often same as base dir)
+        self.models_dir = os.environ.get("PIPER_MODELS_DIR", piper_base_dir)
         
         # Log the models directory path
         logger.info(f"Piper models directory set to: {self.models_dir}")
@@ -197,9 +207,12 @@ class PiperProvider(TTSProvider):
                 json_line = json.dumps(json_data) + "\n"
                 
                 # Run Piper command with JSON input
+                # Ensure piper_path is absolute
+                absolute_piper_path = os.path.abspath(self.piper_path)
+                absolute_model_path = os.path.abspath(model_path)
                 cmd = [
-                    self.piper_path,
-                    "--model", model_path,
+                    absolute_piper_path, # Use absolute path
+                    "--model", absolute_model_path, # Use absolute path
                     "--json-input"
                 ]
                 
@@ -207,7 +220,7 @@ class PiperProvider(TTSProvider):
                 logger.info(f"Executing piper command: {' '.join(cmd)}")
                 
                 # Prepare environment variables, specifically LD_LIBRARY_PATH
-                piper_dir = os.path.dirname(self.piper_path)
+                piper_dir = os.path.dirname(absolute_piper_path)
                 current_env = os.environ.copy()
                 # Prepend piper directory to LD_LIBRARY_PATH
                 # Handle case where LD_LIBRARY_PATH might already exist
@@ -218,7 +231,7 @@ class PiperProvider(TTSProvider):
                 
                 # Execute Piper with JSON input directly to stdin and updated env
                 result = subprocess.run(
-                    cmd,
+                    cmd, # Pass command as list
                     input=json_line,
                     capture_output=True,
                     text=True,
