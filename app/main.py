@@ -119,7 +119,7 @@ app.add_middleware(
 app.include_router(stories.router, prefix="/api/stories", tags=["stories"])
 app.include_router(audio.router, prefix="/api/audio", tags=["audio"])
 app.include_router(integrations.router, prefix="/api/integrations", tags=["integrations"])
-##app.include_router(preferences.router, prefix="/api/preferences", tags=["preferences"])
+app.include_router(preferences.router, prefix="/api/preferences", tags=["preferences"])
 #app.include_router(streaming.router, prefix="/api/streaming", tags=["streaming"])
 app.include_router(esp32.router, prefix="/api/esp32", tags=["esp32"])
 
@@ -139,7 +139,7 @@ async def story_history(request: Request):
     return templates.TemplateResponse("index.html", {"request": request, "active_page": "history"})
 
 @app.get("/preferences")
-async def preferences(request: Request):
+async def user_preferences(request: Request):
     """Render the preferences page"""
     return templates.TemplateResponse("preferences.html", {
         "request": request,
