@@ -182,34 +182,29 @@ async def startup_event():
     Attempts to automatically connect to ESP32 and start monitoring.
     """
     try:
-        # Import here to avoid circular imports
+        import httpx
+        
+        # First try to connect if not already connected
         from app.serial.esp32 import get_esp32_manager
-        from app.serial.monitor import start_esp32_monitor
-        from fastapi import BackgroundTasks
-        import asyncio
         
-        # Get ESP32 manager
+        # Get ESP32 manager and try to connect
         manager = get_esp32_manager()
+        if not manager.serial_conn or not manager.serial_conn.is_open:
+            if manager.connect():
+                logger.info("Auto-connected to ESP32 at startup")
+            else:
+                logger.info("Could not auto-connect to ESP32 at startup")
+                return
         
-        # Try to auto-connect
-        if manager.connect():
-            logger.info("Auto-connected to ESP32 at startup")
-            
-            # Start monitoring in background
-            background_tasks = BackgroundTasks()
-            background_tasks.add_task(start_esp32_monitor)
-            
-            # Execute the task by creating a new event loop and running it
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                loop.run_until_complete(start_esp32_monitor())
-            except Exception as e:
-                logger.error(f"Error starting ESP32 monitor: {e}")
-            finally:
-                loop.close()
-        else:
-            logger.info("Could not auto-connect to ESP32 at startup")
+        # Now call the existing endpoint to start monitoring
+        async with httpx.AsyncClient() as client:
+            response = await client.post("http://localhost:8000/api/esp32/start-monitoring")
+            if response.status_code == 200:
+                result = response.json()
+                logger.info(f"ESP32 monitoring started: {result['message']}")
+            else:
+                logger.error(f"Failed to start ESP32 monitoring: {response.text}")
+                
     except Exception as e:
         logger.error(f"Error setting up ESP32 at startup: {str(e)}", exc_info=True)
         # Non-fatal error, application should still start
