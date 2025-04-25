@@ -50,7 +50,7 @@ async def process_character_selection(selections: ESP32Selections) -> None:
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(
-                    "http://localhost:8000/api/stories/generate_streaming",
+                    "http://localhost:8000/api/stories/generate_and_play_local_streaming",
                     json=story_request.dict(),
                     timeout=120.0
                 )
