@@ -797,30 +797,29 @@ async def generate_story_and_play_local_streaming(story_request: StoryGenRequest
             tts_provider = TTSFactory.get_provider(os.environ.get("TTS_PROVIDER", "piper")) # Default to piper maybe?
 
             # === Start Audio Player Process ===
-            # TODO: Make player command and parameters configurable/dynamic
-            # Assuming Piper default: 16-bit Signed Little Endian, 22050 Hz, Mono
+            # Raspberry Pi compatible aplay settings
             player_cmd = [
-                "mplayer",
-                "-cache", "1024",       # Buffering
-                "-really-quiet",        # Reduce output noise
-                "-noconsolecontrols",   # Don't capture keyboard input
-                "-demuxer", "rawaudio", # Format specification
-                "-rawaudio", "rate=22050:channels=1:samplesize=2:format=s16le", # Match Piper output
-                "-"                     # Read from stdin
-            ]
-            
-            # Fallback to aplay if mplayer fails
-            player_fallback_cmd = [
                 "aplay",
-                "-D", "plughw:0,0",     # Explicitly specify device
+                # Use default device instead of explicit hardware device
                 "-r", "22050",          # Sample Rate
                 "-f", "S16_LE",         # Format (Signed 16-bit Little Endian)
                 "-c", "1",              # Channels (Mono)
+                # Add the -q flag for quiet mode
+                "-q",                   # Quiet mode - less logging
                 "-"                     # Read from stdin
             ]
             
             logger.info(f"Starting audio player: {' '.join(player_cmd)}")
             try:
+                # Run a diagnostic check first
+                diag_process = await asyncio.create_subprocess_exec(
+                    "aplay", "--version",
+                    stdout=asyncio.subprocess.PIPE
+                )
+                stdout, _ = await diag_process.communicate()
+                logger.info(f"Audio player version: {stdout.decode().split()[1] if stdout else 'unknown'}")
+                
+                # Start the player process
                 player_process = await asyncio.create_subprocess_exec(
                     *player_cmd,
                     stdin=asyncio.subprocess.PIPE,
@@ -832,34 +831,18 @@ async def generate_story_and_play_local_streaming(story_request: StoryGenRequest
                 yield f"data: {json.dumps({'status': 'Player started'})}\n\n"
 
             except FileNotFoundError:
-                logger.warning(f"mplayer not found. Falling back to aplay...")
-                try:
-                    # Try with aplay as fallback
-                    player_process = await asyncio.create_subprocess_exec(
-                        *player_fallback_cmd,
-                        stdin=asyncio.subprocess.PIPE,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE
-                    )
-                    logger.info(f"Fallback player started (PID: {player_process.pid})")
-                    yield f"data: {json.dumps({'status': 'Player started (fallback)'})}\n\n"
-                except FileNotFoundError:
-                    logger.error(f"Audio player commands ('{player_cmd[0]}' and '{player_fallback_cmd[0]}') not found. Ensure either is installed and in PATH.")
-                    yield f"data: {json.dumps({'error': 'Audio players not found'})}\n\n"
-                    return
-                except Exception as fallback_err:
-                    logger.error(f"Failed to start fallback audio player: {fallback_err}", exc_info=True)
-                    yield f"data: {json.dumps({'error': f'Failed to start fallback player: {fallback_err}'})}\n\n"
-                    return
+                logger.error(f"Audio player command ('{player_cmd[0]}') not found. Ensure it is installed and in PATH.")
+                yield f"data: {json.dumps({'error': 'Audio player not found'})}\n\n"
+                return
             except Exception as player_err:
                 logger.error(f"Failed to start audio player: {player_err}", exc_info=True)
                 yield f"data: {json.dumps({'error': f'Failed to start player: {player_err}'})}\n\n"
                 return
             # === End Start Audio Player Process ===
 
-            # Give the player a moment to initialize
-            logger.info("Waiting for audio player to initialize...")
-            await asyncio.sleep(0.5)
+            # Enable the player to initialize - smaller delay compared to before
+            logger.info("Allowing audio player to initialize...")
+            await asyncio.sleep(0.1)
             
             # Buffers
             full_text = ""
@@ -902,18 +885,37 @@ async def generate_story_and_play_local_streaming(story_request: StoryGenRequest
                                             logger.debug(f"Writing {len(audio_chunk)} bytes to player")
                                             player_process.stdin.write(audio_chunk)
                                             await player_process.stdin.drain()
-                                            # Small delay after each chunk to avoid overwhelming the player
-                                            await asyncio.sleep(0.01)
+                                            # No sleep between chunks - let system pace naturally
                                             # Accumulate for saving later
                                             full_audio_data += audio_chunk
                                         except ConnectionResetError:
                                             logger.warning("Player process stdin connection lost unexpectedly.")
-                                            # Attempt to break cleanly or log more details
-                                            break # Exit inner audio loop if pipe breaks
+                                            # Try to restart the player process if it failed
+                                            try:
+                                                # Clean up old player if still running
+                                                if player_process and player_process.returncode is None:
+                                                    try:
+                                                        player_process.terminate()
+                                                        await asyncio.sleep(0.1)
+                                                    except Exception:
+                                                        pass
+                                                    
+                                                logger.info("Attempting to restart audio player...")
+                                                player_process = await asyncio.create_subprocess_exec(
+                                                    *player_cmd,
+                                                    stdin=asyncio.subprocess.PIPE,
+                                                    stdout=asyncio.subprocess.PIPE,
+                                                    stderr=asyncio.subprocess.PIPE
+                                                )
+                                                logger.info(f"Player restarted (PID: {player_process.pid})")
+                                                # Continue with next chunk
+                                                continue
+                                            except Exception as restart_err:
+                                                logger.error(f"Failed to restart player: {restart_err}")
+                                                break
                                         except Exception as write_err:
-                                             logger.error(f"Error writing to player stdin: {write_err}")
-                                             # Consider breaking or logging further
-                                             break # Exit inner audio loop on write error
+                                            logger.error(f"Error writing to player stdin: {write_err}")
+                                            break
                                     else:
                                         logger.warning("Player stdin not available or closing, cannot pipe audio chunk.")
                                         break # Exit inner audio loop if player is gone
@@ -950,16 +952,12 @@ async def generate_story_and_play_local_streaming(story_request: StoryGenRequest
                                         logger.debug(f"Writing {len(audio_chunk)} bytes to player")
                                         player_process.stdin.write(audio_chunk)
                                         await player_process.stdin.drain()
-                                        # Small delay after each chunk to avoid overwhelming the player
-                                        await asyncio.sleep(0.01)
+                                        # No sleep between chunks - let system pace naturally
                                         # Accumulate for saving later
                                         full_audio_data += audio_chunk
                                     except ConnectionResetError:
                                         logger.warning("Player process stdin connection lost during final chunk.")
                                         break
-                                    except Exception as write_err:
-                                         logger.error(f"Error writing final chunk to player stdin: {write_err}")
-                                         break
                     except Exception as audio_err:
                         logger.error(f"Error generating final streaming audio: {str(audio_err)}")
                         # yield f"data: {json.dumps({'warning': f'Final audio chunk error: {audio_err}'})}\n\n"
@@ -974,14 +972,14 @@ async def generate_story_and_play_local_streaming(story_request: StoryGenRequest
             logger.info("Story generation complete. Closing player input and saving.")
 
             # Close player stdin stream gracefully
-            if player_process and player_process.stdin and not player_process.stdin.is_closing():
+            if player_process and player_process.returncode is None and player_process.stdin and not player_process.stdin.is_closing():
                 try:
                     logger.info("Closing player stdin and waiting for buffered audio to finish playing...")
                     player_process.stdin.close()
                     await player_process.stdin.wait_closed() # Wait for buffer to flush
                     
                     # Give player time to process remaining buffered audio
-                    await asyncio.sleep(1.0)
+                    await asyncio.sleep(0.5)  # reduced from 1.0
                     logger.info("Player stdin closed.")
                 except Exception as close_err:
                      logger.warning(f"Error closing player stdin: {close_err}")
@@ -1061,12 +1059,28 @@ async def generate_story_and_play_local_streaming(story_request: StoryGenRequest
 
 
             # Wait for player process to finish
-            if player_process:
-                logger.info("Waiting for player process to finish...")
-                stdout, stderr = await player_process.communicate() # communicate reads remaining output/stderr and waits
-                logger.info(f"Player process finished with exit code: {player_process.returncode}")
-                if stdout: logger.debug(f"Player stdout:\n{stdout.decode(errors='ignore')}")
-                if stderr: logger.warning(f"Player stderr:\n{stderr.decode(errors='ignore')}")
+            if player_process and player_process.returncode is None:
+                try:
+                    logger.info("Waiting for player process to finish...")
+                    stdout, stderr = await asyncio.wait_for(
+                        player_process.communicate(), 
+                        timeout=3.0  # Add timeout to avoid waiting forever
+                    )
+                    logger.info(f"Player process finished with exit code: {player_process.returncode}")
+                    if stdout: 
+                        logger.debug(f"Player stdout:\n{stdout.decode(errors='ignore')}")
+                    if stderr: 
+                        logger.warning(f"Player stderr:\n{stderr.decode(errors='ignore')}")
+                except asyncio.TimeoutError:
+                    logger.warning("Timeout waiting for player to finish, terminating...")
+                    try:
+                        player_process.terminate()
+                        await asyncio.sleep(0.2)
+                        if player_process.returncode is None:
+                            logger.warning("Player process not responding to termination, killing...")
+                            player_process.kill()
+                    except Exception as term_err:
+                        logger.error(f"Error terminating player: {term_err}")
 
             yield f"data: {json.dumps({'status': 'Playback complete'})}\n\n"
 
