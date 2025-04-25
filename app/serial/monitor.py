@@ -10,6 +10,7 @@ import logging
 import os
 from typing import Optional, Dict, Any
 import httpx
+import json
 
 from app.serial.esp32 import get_esp32_manager, ESP32Selections
 from app.serial.converter import esp32_selection_to_story_request, esp32_selections_to_story_request
@@ -54,12 +55,40 @@ async def process_character_selection(selections: ESP32Selections) -> None:
                     json=story_request.dict(),
                     timeout=120.0
                 )
-                if response.status_code != 201:
-                    logger.error(f"Failed to generate story: {response.text}")
+                if response.status_code != 200:
+                    logger.error(f"Failed to generate story: Status {response.status_code}")
                 else:
-                    story_data = response.json()
-                    story_id = story_data.get("id")
-                    logger.info(f"Successfully generated story with ID: {story_id}")
+                    logger.info(f"Successfully started local audio playback (status: {response.status_code})")
+                    
+                    # Optional: If we want to log the events from the stream
+                    # Note: This will wait until the stream completes
+                    try:
+                        # Read and log a few key events from the stream
+                        story_id = None
+                        title = None
+                        
+                        async for line in response.aiter_lines():
+                            if not line.strip():
+                                continue
+                                
+                            # Parse SSE format: "data: {...}"
+                            if line.startswith("data:"):
+                                try:
+                                    event_data = json.loads(line[5:].strip())
+                                    # Extract key information
+                                    if "event" in event_data and event_data["event"] == "complete":
+                                        if "data" in event_data and "story_id" in event_data["data"]:
+                                            story_id = event_data["data"]["story_id"]
+                                            title = event_data["data"].get("title", "Unknown Title")
+                                            logger.info(f"Story completed and saved with ID: {story_id}, Title: {title}")
+                                    elif "status" in event_data:
+                                        logger.info(f"Playback status: {event_data['status']}")
+                                    elif "error" in event_data:
+                                        logger.error(f"Playback error: {event_data['error']}")
+                                except json.JSONDecodeError:
+                                    pass  # Skip lines that aren't valid JSON
+                    except Exception as stream_err:
+                        logger.error(f"Error processing event stream: {stream_err}", exc_info=True)
             except Exception as inner_e:
                 logger.error(f"Error generating story: {inner_e}", exc_info=True)
     except Exception as e:

@@ -363,29 +363,43 @@ class PiperProvider(TTSProvider):
                                       voice_id: Optional[str] = None, 
                                       story_info: Optional[Dict[str, Any]] = None) -> AsyncGenerator[bytes, None]:
         """
-        Generate audio from text in a streaming fashion
-        
+        Generate raw audio data from text in a streaming fashion.
+        Outputs raw PCM audio suitable for piping to a player like aplay.
+
         Args:
-            text: The text to convert to speech
-            voice_id: Optional voice ID to use
-            story_info: Optional dictionary containing universe and title
-            
+            text: The text to convert to speech.
+            voice_id: Optional voice ID to use.
+            story_info: Optional dictionary containing universe and title (used for speaker_id).
+
         Returns:
-            Async generator yielding chunks of audio data as they're generated
+            Async generator yielding chunks of raw PCM audio data.
         """
         import asyncio
-        import io
-        import wave
         
+        process = None # Define process here to ensure it's accessible in finally
         try:
             # Use provided voice ID or default
             selected_voice_id = voice_id or self.voice_id
             
-            # Get full voice ID if it's just the basic name
+            # Handle potential multi-speaker format like "en_US-lessac-medium@2"
+            speaker_id = None
+            if '@' in selected_voice_id:
+                selected_voice_id, speaker_id_str = selected_voice_id.split('@', 1)
+                try:
+                    speaker_id = int(speaker_id_str)
+                    logger.info(f"Using multi-speaker voice: {selected_voice_id} with speaker ID: {speaker_id}")
+                except ValueError:
+                    logger.warning(f"Invalid speaker ID format in voice_id: {voice_id}. Ignoring speaker ID.")
+                    speaker_id = None # Reset if format is wrong
+            # Extract the speaker ID from story_info if provided (fallback)
+            elif story_info and 'speaker_id' in story_info:
+                speaker_id = story_info.get('speaker_id')
+            
+            # Append .onnx if needed (after splitting speaker ID)
             if not selected_voice_id.endswith('.onnx'):
                 selected_voice_id = f"{selected_voice_id}.onnx"
-            
-            # Determine model path using same logic as in generate_audio
+
+            # Determine model path
             model_path = None
             
             # Use the specific model path from environment if available
@@ -410,71 +424,101 @@ class PiperProvider(TTSProvider):
                     if os.path.exists(location):
                         model_path = location
                         break
-            
+                        
             if not model_path:
                 logger.error(f"Voice model not found for streaming: {selected_voice_id}")
-                raise FileNotFoundError(f"Voice model not found: {selected_voice_id}")
-            
-            # Extract the speaker ID from story_info if provided
-            speaker_id = None
-            if story_info and 'speaker_id' in story_info:
-                speaker_id = story_info.get('speaker_id')
-            
-            # Use a temporary file for output
-            temp_output_file = os.path.join(self.output_dir, f"temp_stream_{uuid.uuid4()}.wav")
-            
-            # Create a JSON input line for Piper
-            json_data = {"text": text, "output_file": temp_output_file}
-            if speaker_id is not None:
-                json_data["speaker_id"] = speaker_id
-            
-            json_line = json.dumps(json_data) + "\n"
-            
-            # Run Piper command with JSON input
+                # Yield nothing if model not found to avoid breaking consumer entirely
+                return
+                # raise FileNotFoundError(f"Voice model not found: {selected_voice_id}") # Alternative: raise error
+
+            # Prepare Piper command for raw streaming output
             cmd = [
                 self.piper_path,
                 "--model", model_path,
-                "--json-input"
+                "--output-raw" # Output raw audio to stdout
             ]
             
-            # Log the command
+            # Add speaker ID if applicable
+            if speaker_id is not None:
+                cmd.extend(["--speaker", str(speaker_id)])
+
+            # Set up environment variables (similar to generate_audio)
+            piper_lib_dir = os.path.dirname(os.path.abspath(self.piper_path))
+            if os.path.isdir(self.piper_base_dir) and self.piper_base_dir != piper_lib_dir:
+                piper_lib_dir = self.piper_base_dir
+                
+            current_env = os.environ.copy()
+            current_env['LD_LIBRARY_PATH'] = f"{piper_lib_dir}:{current_env.get('LD_LIBRARY_PATH', '')}".strip(':')
+
             logger.info(f"Executing piper streaming command: {' '.join(cmd)}")
-            
-            # Execute Piper to generate the audio file
+
+            # Execute Piper, reading text from stdin and writing raw audio to stdout
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.PIPE,
+                env=current_env # Pass the environment variables
             )
-            
-            # Send the JSON data to the process
-            stdout, stderr = await process.communicate(json_line.encode())
-            
+
+            # Write text to Piper's stdin and close it
+            if process.stdin:
+                # Piper expects specific encoding, often UTF-8
+                process.stdin.write(text.encode('utf-8'))
+                await process.stdin.drain()
+                process.stdin.close()
+
+            # Read raw audio chunks from Piper's stdout
+            chunk_size = 4096 # Adjust chunk size as needed
+            while process.stdout and not process.stdout.at_eof():
+                chunk = await process.stdout.read(chunk_size)
+                if not chunk:
+                    break # End of stream
+                yield chunk
+                # No artificial sleep needed here
+
+            # Wait for the process to finish and check for errors
+            await process.wait()
+
             if process.returncode != 0:
-                logger.error(f"Piper command failed: {stderr.decode()}")
-                return
-            
-            # Read the audio file and yield chunks
-            if os.path.exists(temp_output_file):
+                stderr_output = await process.stderr.read() if process.stderr else b''
+                logger.error(f"Piper command failed with exit code {process.returncode}: {stderr_output.decode(errors='ignore')}")
+                # Option 1: Just log the error but don't break the stream
+                # Option 2: Raise - commented out for now
+                # raise RuntimeError(f"Piper failed: {stderr_output.decode(errors='ignore')}")
+
+        except asyncio.CancelledError:
+            logger.info("Piper streaming task cancelled.")
+            # Ensure process is terminated if cancelled mid-stream
+            if process and process.returncode is None:
                 try:
-                    with open(temp_output_file, 'rb') as f:
-                        # Yield file contents in chunks for streaming
-                        chunk_size = 4096  # 4KB chunks
-                        while chunk := f.read(chunk_size):
-                            yield chunk
-                            # Small delay to simulate streaming
-                            await asyncio.sleep(0.01)
-                finally:
-                    # Clean up the temporary file
-                    try:
-                        os.remove(temp_output_file)
-                    except Exception as e:
-                        logger.warning(f"Failed to remove temporary file: {e}")
-            else:
-                logger.error(f"Temporary audio file not created: {temp_output_file}")
-                
+                    process.terminate()
+                    await process.wait()
+                    logger.info("Terminated Piper process due to cancellation.")
+                except ProcessLookupError:
+                    pass # Process already finished
+                except Exception as term_err:
+                    logger.warning(f"Error terminating Piper process on cancellation: {term_err}")
+            raise # Re-raise CancelledError
+            
+        except FileNotFoundError as e:
+            logger.error(f"Piper executable or model not found: {e}")
+            # Yield nothing or raise specific error
+            return
+            
         except Exception as e:
-            logger.error(f"Error in streaming audio generation with Piper: {str(e)}")
-            # Yield an empty chunk to prevent breaking the stream
-            yield b"" 
+            logger.error(f"Error in streaming audio generation with Piper: {str(e)}", exc_info=True)
+            # Yield an empty chunk or raise to signal error to the consumer
+            yield b""
+            
+        finally:
+            # Ensure process is cleaned up if it was started and hasn't finished
+            if process and process.returncode is None:
+                try:
+                    logger.warning("Piper process still running in finally block, terminating.")
+                    process.terminate()
+                    await process.wait()
+                except ProcessLookupError:
+                    pass # Process already finished
+                except Exception as term_err:
+                    logger.warning(f"Error terminating Piper process in finally block: {term_err}") 
