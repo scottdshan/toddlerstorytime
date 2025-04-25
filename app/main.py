@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 import logging
 from typing import Optional
 
-from app.endpoints import stories, audio, integrations, preferences, streaming, esp32
+from app.endpoints import stories, audio, integrations, preferences, esp32
 from app.db.database import Base, engine
 from app.serial.esp32 import get_esp32_manager
 from app.serial.monitor import start_esp32_monitor
