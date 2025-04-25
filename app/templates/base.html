@@ -235,9 +235,8 @@
         
         // Function to play audio in the global player
         function playAudioGlobal(audioPath, title) {
-            // Set the audio source
-            const fullAudioPath = audioPath.startsWith('/static/') ? audioPath : `/static/${audioPath}`;
-            globalAudioElement.src = fullAudioPath;
+            // Set the audio source - Use the provided path directly
+            globalAudioElement.src = audioPath;
             
             // Set the title
             document.getElementById('current-audio-title').textContent = title || 'Now Playing';

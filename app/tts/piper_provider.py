@@ -43,7 +43,7 @@ class PiperProvider(TTSProvider):
         piper_exe_path_default = os.path.join(self.piper_base_dir, "piper") # Use self.piper_base_dir
         self.piper_path = os.path.expanduser(os.environ.get("PIPER_PATH", piper_exe_path_default))
         logger.info(f"Using Piper executable path: {self.piper_path}")
-
+        
         # Check if the determined piper executable exists and is a file
         if not os.path.isfile(self.piper_path):
             logger.warning(
