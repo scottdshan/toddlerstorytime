@@ -969,6 +969,55 @@ async def generate_story_and_play_local_streaming(story_request: StoryGenRequest
 
             # --- End Main Generation and Piping Loop ---
 
+            # --- Process Final Remaining Text Chunk ---
+            if chunk_buffer and tts_provider:
+                logger.info(f"Processing final remaining text chunk (length {len(chunk_buffer)}): '{chunk_buffer[:100]}{'...' if len(chunk_buffer) > 100 else ''}'")
+                try:
+                    # Check if player is still alive before processing final chunk
+                    if player_process and player_process.returncode is None and player_process.stdin and not player_process.stdin.is_closing():
+                        # Generate audio for the final chunk
+                        final_audio_processed = False
+                        async for audio_chunk in tts_provider.generate_audio_streaming( # type: ignore
+                            text=chunk_buffer, # Process the entire remaining buffer
+                            voice_id=story_request.voice_id
+                        ):
+                            final_audio_processed = True # Mark that we got some audio data
+                            # Check player status before writing
+                            if player_process.returncode is not None:
+                                logger.warning(f"Player process exited with code {player_process.returncode} during final chunk - cannot write")
+                                break
+                            
+                            if player_process.stdin and not player_process.stdin.is_closing():
+                                try:
+                                    # Write audio chunk to player's stdin
+                                    logger.debug(f"Writing final {len(audio_chunk)} bytes to player")
+                                    player_process.stdin.write(audio_chunk)
+                                    await player_process.stdin.drain()
+                                    full_audio_data += audio_chunk # Accumulate for saving
+                                except ConnectionResetError:
+                                    logger.warning("Player process stdin connection lost during final chunk write.")
+                                    break
+                                except Exception as write_err:
+                                     logger.error(f"Error writing final chunk to player stdin: {write_err}")
+                                     break
+                            else:
+                                logger.warning("Player stdin became unavailable during final chunk write.")
+                                break
+                                
+                        if not final_audio_processed:
+                             logger.warning("No audio data was generated for the final text chunk.")
+                             
+                    else:
+                        logger.warning("Player not available or already exited before processing final text chunk.")
+                        
+                except Exception as final_audio_err:
+                    logger.error(f"Error generating or piping final streaming audio chunk: {str(final_audio_err)}")
+                    # Don't yield error here, just log it and proceed to cleanup/save
+            elif tts_provider:
+                 logger.info("No remaining text in chunk_buffer to process for final audio.")
+            # --- End Final Chunk Processing ---
+            
+
             logger.info("Story generation complete. Closing player input and saving.")
 
             # Close player stdin stream gracefully
