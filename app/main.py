@@ -92,8 +92,42 @@ check_database_schema()
 # Create the database tables
 Base.metadata.create_all(bind=engine)
 
-# Initialize FastAPI app
-app = FastAPI(title=APP_NAME, debug=DEBUG)
+# Lifespan manager for startup/shutdown events
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup Logic...
+    logger.info("Application startup: Initializing ESP32 connection and monitoring...")
+    manager = get_esp32_manager()
+    # cancel running task if exists
+    if manager.monitor_task and not manager.monitor_task.done():
+        manager.monitor_task.cancel()
+        await asyncio.sleep(0)
+        manager.monitor_task = None
+    manager.disconnect()
+
+    if not manager.is_connected:
+        if manager.connect():
+            logger.info("ESP32 connected during startup")
+            manager.monitor_task = asyncio.create_task(start_esp32_monitor())
+        else:
+            logger.warning("ESP32 auto-connect failed during startup")
+
+    yield  # --- Application runs ---
+
+    # Shutdown Logic
+    if manager.monitor_task and not manager.monitor_task.done():
+        manager.monitor_task.cancel()
+        try:
+            await manager.monitor_task
+        except asyncio.CancelledError:
+            pass
+        manager.monitor_task = None
+    if manager.is_connected:
+        manager.disconnect()
+    logger.info("Application shutdown complete.")
+
+# Initialize FastAPI app after lifespan defined
+app = FastAPI(title=APP_NAME, debug=DEBUG, lifespan=lifespan)
 
 # Add exception handlers for better error messages
 @app.exception_handler(RequestValidationError)
@@ -128,64 +162,6 @@ app.include_router(integrations.router, prefix="/api/integrations", tags=["integ
 app.include_router(preferences.router, prefix="/api/preferences", tags=["preferences"])
 #app.include_router(streaming.router, prefix="/api/streaming", tags=["streaming"])
 app.include_router(esp32.router, prefix="/api/esp32", tags=["esp32"])
-
-# Lifespan manager for startup/shutdown events
-@asynccontextmanager
-@app.lifespan # type: ignore
-async def lifespan(app: FastAPI):
-    # --- Startup Logic --- 
-    logger.info("Application startup: Initializing ESP32 connection and monitoring...")
-    monitor_task = None
-    manager = None
-    try:
-        from app.serial.esp32 import get_esp32_manager
-        from app.serial.monitor import start_esp32_monitor
-
-        manager = get_esp32_manager()
-        if manager.monitor_task and not manager.monitor_task.done():
-            manager.monitor_task.cancel()
-            await asyncio.sleep(0)  # let event loop process cancellation
-        manager.disconnect()
-
-        is_connected = False
-        if not manager.serial_conn or not manager.serial_conn.is_open:
-            if manager.connect():
-                logger.info("Auto-connected to ESP32 during lifespan startup")
-                is_connected = True
-            else:
-                logger.warning("Could not auto-connect to ESP32 during lifespan startup")
-        else:
-            logger.info("ESP32 already connected during lifespan startup")
-            is_connected = True
-
-        if is_connected:
-            logger.info("Creating ESP32 monitoring task...")
-            # Store the task in the manager
-            manager.monitor_task = asyncio.create_task(start_esp32_monitor())
-            logger.info("ESP32 monitoring task created and stored.")
-            
-    except Exception as e:
-         logger.error(f"Error during ESP32 setup in lifespan startup: {str(e)}", exc_info=True)
-
-    logger.info("Application startup complete.")
-    yield # Application runs here
-    # --- Shutdown Logic --- 
-    logger.info("Application shutdown: Cleaning up...")
-    # Use manager.monitor_task if it exists
-    if manager and manager.monitor_task and not manager.monitor_task.done():
-        logger.info("Cancelling ESP32 monitoring task stored in manager...")
-        manager.monitor_task.cancel()
-        try:
-            await manager.monitor_task # Wait for cancellation
-            manager.monitor_task = None # Clear task reference
-        except asyncio.CancelledError:
-             logger.info("ESP32 monitoring task successfully cancelled.")
-             manager.monitor_task = None # Clear task reference
-    # Disconnect ESP32 if manager was initialized and connected
-    if manager and manager.serial_conn and manager.serial_conn.is_open:
-         logger.info("Disconnecting ESP32 during lifespan shutdown.")
-         manager.disconnect()
-    logger.info("Application shutdown complete.")
 
 @app.get("/")
 async def index(request: Request):
