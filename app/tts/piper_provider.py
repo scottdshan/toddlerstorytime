@@ -26,10 +26,10 @@ class PiperProvider(TTSProvider):
         Initialize the Piper provider
         
         Args:
-            voice_id: Optional voice ID to use (defaults to "en_US-lessac-medium")
+            voice_id: Optional voice ID to use (defaults to "en_GB-northern_english_male-medium")
         """
         # Set default voice ID if not provided
-        self.voice_id = voice_id or "en_US-lessac-medium"
+        self.voice_id = voice_id or "en_GB-northern_english_male-medium"
         
         # Determine Piper base directory (contains models, libs, etc.)
         # Priority: PIPER_DIR env var, otherwise default to ~/piper
@@ -83,6 +83,14 @@ class PiperProvider(TTSProvider):
             logger.warning(f"Network share path is not available: {e}")
         
         logger.info(f"Initialized Piper Provider with default voice {self.voice_id}")
+
+        # Log final calculated paths after __init__
+        logger.info(f"PiperProvider initialized with:")
+        logger.info(f"  Base Dir: {self.piper_base_dir}")
+        logger.info(f"  Executable Path: {self.piper_path}")
+        logger.info(f"  Models Dir: {self.models_dir}")
+        logger.info(f"  Voice Model Path Env: {self.voice_model_path}")
+        logger.info(f" LD_LIBRARY_PATH: {os.environ.get('LD_LIBRARY_PATH')}")
 
     def _create_friendly_filename(self, universe: str, title: str) -> str:
         """Create a friendly filename from universe and title"""
@@ -222,20 +230,18 @@ class PiperProvider(TTSProvider):
                 # Log the command being executed
                 logger.info(f"Executing piper command: {' '.join(cmd)}")
                 
-                # # Prepare environment variables, specifically LD_LIBRARY_PATH
-                # # LD_LIBRARY_PATH should point to the directory containing the .so files (the base dir)
-                piper_lib_dir = os.path.dirname(os.path.abspath(self.piper_path)) # Start with exe dir
-                # Check if expected base dir exists and use it if different
-                if os.path.isdir(self.piper_base_dir) and self.piper_base_dir != piper_lib_dir: # Use self.piper_base_dir
-                     piper_lib_dir = self.piper_base_dir # Use self.piper_base_dir
+                # Log the LD_LIBRARY_PATH from the environment that will be inherited
+                inherited_ld_path = os.environ.get('LD_LIBRARY_PATH', '[Not Set In Environment]')
+                logger.info(f"Subprocess will inherit LD_LIBRARY_PATH: {inherited_ld_path}")
                              
-                # Execute Piper with JSON input directly to stdin and updated env
+                # Execute Piper with JSON input directly to stdin, inheriting the parent environment
                 result = subprocess.run(
                     cmd, # Pass command as list
                     input=json_line,
                     capture_output=True,
                     text=True,
-                    check=True
+                    check=True,
+                    env=os.environ # Inherit parent environment directly
                 )
                 
                 logger.info(f"Generated audio file at {local_file_path}")
