@@ -228,22 +228,14 @@ class PiperProvider(TTSProvider):
                 # Check if expected base dir exists and use it if different
                 if os.path.isdir(self.piper_base_dir) and self.piper_base_dir != piper_lib_dir: # Use self.piper_base_dir
                      piper_lib_dir = self.piper_base_dir # Use self.piper_base_dir
-                
-                current_env = os.environ.copy()
-                # Prepend piper lib directory to LD_LIBRARY_PATH
-                # current_env['LD_LIBRARY_PATH'] = f"{piper_lib_dir}:{current_env.get('LD_LIBRARY_PATH', '')}".strip(':')
-                
-                # # Log environment variables being passed
-                # logger.info(f"Passing LD_LIBRARY_PATH: {current_env['LD_LIBRARY_PATH']}")
-                
+                             
                 # Execute Piper with JSON input directly to stdin and updated env
                 result = subprocess.run(
                     cmd, # Pass command as list
                     input=json_line,
                     capture_output=True,
                     text=True,
-                    check=True,
-                    env=current_env # Pass the modified environment
+                    check=True
                 )
                 
                 logger.info(f"Generated audio file at {local_file_path}")
