@@ -31,37 +31,39 @@ class PiperProvider(TTSProvider):
         # Set default voice ID if not provided
         self.voice_id = voice_id or "en_US-lessac-medium"
         
-        # Get Piper base directory from environment or use default
-        piper_base_dir = os.path.expanduser(os.environ.get("PIPER_DIR", "~/piper"))
-        logger.info(f"Using Piper base directory: {piper_base_dir}")
+        # Determine Piper base directory (contains models, libs, etc.)
+        # Priority: PIPER_DIR env var, otherwise default to ~/piper
+        piper_base_dir_default = os.path.expanduser("~/piper")
+        # Store as instance variable
+        self.piper_base_dir = os.path.expanduser(os.environ.get("PIPER_DIR", piper_base_dir_default))
+        logger.info(f"Using Piper base directory: {self.piper_base_dir}")
 
-        # Construct the expected path to the executable within the base directory
-        self.piper_path = os.path.join(piper_base_dir, "piper")
-        logger.info(f"Expected Piper executable path: {self.piper_path}")
-        
-        # Check if the piper executable exists at the constructed path
-        if not os.path.exists(self.piper_path) or not os.path.isfile(self.piper_path):
-            logger.warning(f"Piper executable not found or is not a file at {self.piper_path}. Please check installation or set PIPER_DIR env var.")
-            # Attempt fallback if PIPER_PATH env var exists (legacy support?)
-            legacy_piper_path = os.path.expanduser(os.environ.get("PIPER_PATH", ""))
-            if legacy_piper_path and os.path.exists(legacy_piper_path) and os.path.isfile(legacy_piper_path):
-                 logger.info(f"Falling back to PIPER_PATH environment variable: {legacy_piper_path}")
-                 self.piper_path = legacy_piper_path
-            else:
-                 # If neither works, log error, but continue in case it's in system PATH (handled by subprocess)
-                 logger.error(f"Could not definitively locate piper executable. Will rely on system PATH if possible.")
-                 # Set a default value anyway, maybe it's in PATH
-                 self.piper_path = "piper" 
+        # Determine Piper executable path
+        # Priority: PIPER_PATH env var, otherwise default to <piper_base_dir>/piper
+        piper_exe_path_default = os.path.join(self.piper_base_dir, "piper") # Use self.piper_base_dir
+        self.piper_path = os.path.expanduser(os.environ.get("PIPER_PATH", piper_exe_path_default))
+        logger.info(f"Using Piper executable path: {self.piper_path}")
+
+        # Check if the determined piper executable exists and is a file
+        if not os.path.isfile(self.piper_path):
+            logger.warning(
+                f"Piper executable not found or is not a file at '{self.piper_path}'. "
+                f"Ensure it's installed correctly or set PIPER_PATH env var. "
+                f"Will attempt to run '{os.path.basename(self.piper_path)}' assuming it's in system PATH."
+            )
+            # Fallback to just the name, hoping it's in PATH
+            self.piper_path = os.path.basename(self.piper_path) 
         else:
-            logger.info(f"Found Piper executable at: {self.piper_path}")
+             logger.info(f"Confirmed Piper executable exists at: {self.piper_path}")
         
-        # Allow specifying an exact path to the voice model file
+        # Allow specifying an exact path to the voice model file (overrides model search)
         self.voice_model_path = os.environ.get("PIPER_VOICE_MODEL_PATH")
         if self.voice_model_path:
             logger.info(f"Using specific voice model path from environment: {self.voice_model_path}")
         
-        # Get models directory from environment or use default (often same as base dir)
-        self.models_dir = os.environ.get("PIPER_MODELS_DIR", piper_base_dir)
+        # Determine models directory path
+        # Priority: PIPER_MODELS_DIR env var, otherwise default to piper_base_dir
+        self.models_dir = os.environ.get("PIPER_MODELS_DIR", self.piper_base_dir) # Use self.piper_base_dir
         
         # Log the models directory path
         logger.info(f"Piper models directory set to: {self.models_dir}")
@@ -220,11 +222,15 @@ class PiperProvider(TTSProvider):
                 logger.info(f"Executing piper command: {' '.join(cmd)}")
                 
                 # Prepare environment variables, specifically LD_LIBRARY_PATH
-                piper_dir = os.path.dirname(absolute_piper_path)
+                # LD_LIBRARY_PATH should point to the directory containing the .so files (the base dir)
+                piper_lib_dir = os.path.dirname(os.path.abspath(self.piper_path)) # Start with exe dir
+                # Check if expected base dir exists and use it if different
+                if os.path.isdir(self.piper_base_dir) and self.piper_base_dir != piper_lib_dir: # Use self.piper_base_dir
+                     piper_lib_dir = self.piper_base_dir # Use self.piper_base_dir
+                
                 current_env = os.environ.copy()
-                # Prepend piper directory to LD_LIBRARY_PATH
-                # Handle case where LD_LIBRARY_PATH might already exist
-                current_env['LD_LIBRARY_PATH'] = f"{piper_dir}:{current_env.get('LD_LIBRARY_PATH', '')}".strip(':')
+                # Prepend piper lib directory to LD_LIBRARY_PATH
+                current_env['LD_LIBRARY_PATH'] = f"{piper_lib_dir}:{current_env.get('LD_LIBRARY_PATH', '')}".strip(':')
                 
                 # Log environment variables being passed
                 logger.info(f"Passing LD_LIBRARY_PATH: {current_env['LD_LIBRARY_PATH']}")
@@ -351,7 +357,7 @@ class PiperProvider(TTSProvider):
             'repository': 'https://github.com/rhasspy/piper'
         }
 
-    async def generate_audio_streaming(self, text: str, 
+    async def generate_audio_streaming(self, text: str,  # type: ignore
                                       voice_id: Optional[str] = None, 
                                       story_info: Optional[Dict[str, Any]] = None) -> AsyncGenerator[bytes, None]:
         """
