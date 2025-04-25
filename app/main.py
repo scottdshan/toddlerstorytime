@@ -1,5 +1,7 @@
 import os
 import sqlite3
+import asyncio
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -123,6 +125,57 @@ app.include_router(preferences.router, prefix="/api/preferences", tags=["prefere
 #app.include_router(streaming.router, prefix="/api/streaming", tags=["streaming"])
 app.include_router(esp32.router, prefix="/api/esp32", tags=["esp32"])
 
+# Lifespan manager for startup/shutdown events
+@asynccontextmanager
+@app.lifespan # type: ignore
+async def lifespan(app: FastAPI):
+    # --- Startup Logic --- 
+    logger.info("Application startup: Initializing ESP32 connection and monitoring...")
+    monitor_task = None
+    manager = None
+    try:
+        from app.serial.esp32 import get_esp32_manager
+        from app.serial.monitor import start_esp32_monitor
+
+        manager = get_esp32_manager()
+        is_connected = False
+        if not manager.serial_conn or not manager.serial_conn.is_open:
+            if manager.connect():
+                logger.info("Auto-connected to ESP32 during lifespan startup")
+                is_connected = True
+            else:
+                logger.warning("Could not auto-connect to ESP32 during lifespan startup")
+        else:
+            logger.info("ESP32 already connected during lifespan startup")
+            is_connected = True
+
+        if is_connected:
+            logger.info("Creating ESP32 monitoring task...")
+            monitor_task = asyncio.create_task(start_esp32_monitor())
+            logger.info("ESP32 monitoring task created.")
+            
+    except Exception as e:
+         logger.error(f"Error during ESP32 setup in lifespan startup: {str(e)}", exc_info=True)
+
+    logger.info("Application startup complete.")
+    yield # Application runs here
+    # --- Shutdown Logic --- 
+    logger.info("Application shutdown: Cleaning up...")
+    if monitor_task and not monitor_task.done():
+        logger.info("Cancelling ESP32 monitoring task...")
+        monitor_task.cancel()
+        try:
+            await monitor_task # Wait for cancellation
+        except asyncio.CancelledError:
+             logger.info("ESP32 monitoring task successfully cancelled.")
+        except Exception as e:
+             logger.error(f"Error during ESP32 monitoring task cancellation: {str(e)}")
+    # Disconnect ESP32 if manager was initialized and connected
+    if manager and manager.serial_conn and manager.serial_conn.is_open:
+         logger.info("Disconnecting ESP32 during lifespan shutdown.")
+         manager.disconnect()
+    logger.info("Application shutdown complete.")
+
 @app.get("/")
 async def index(request: Request):
     """Render the home page"""
@@ -173,40 +226,3 @@ async def esp32_debug_page(request: Request):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
-
-# Add startup event handler to auto-connect to ESP32
-@app.on_event("startup")
-async def startup_event(background_tasks: BackgroundTasks):
-    """
-    Runs when the application starts up.
-    Attempts to automatically connect to ESP32 and start monitoring.
-    """
-    try:
-        # First try to connect if not already connected
-        from app.serial.esp32 import get_esp32_manager
-        from app.serial.monitor import start_esp32_monitor
-        
-        # Get ESP32 manager and try to connect
-        manager = get_esp32_manager()
-        is_connected = False
-        if not manager.serial_conn or not manager.serial_conn.is_open:
-            if manager.connect():
-                logger.info("Auto-connected to ESP32 at startup")
-                is_connected = True
-            else:
-                logger.info("Could not auto-connect to ESP32 at startup")
-                return
-        else:
-            logger.info("ESP32 already connected at startup")
-            is_connected = True
-
-        # If connected, start monitoring in the background
-        if is_connected:
-            logger.info("Starting ESP32 monitoring task in background...")
-            # Create BackgroundTasks instance and add the task
-            background_tasks.add_task(start_esp32_monitor)
-            logger.info("ESP32 monitoring task added to background.")
-                
-    except Exception as e:
-        logger.error(f"Error setting up ESP32 at startup: {str(e)}", exc_info=True)
-        # Non-fatal error, application should still start
