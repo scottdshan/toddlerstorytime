@@ -2,17 +2,21 @@ import os
 import sqlite3
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, BackgroundTasks
+from fastapi import FastAPI, Request, BackgroundTasks, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 import logging
+from typing import Optional
 
 from app.endpoints import stories, audio, integrations, preferences, streaming, esp32
 from app.db.database import Base, engine
+from app.serial.esp32 import get_esp32_manager
+from app.serial.monitor import start_esp32_monitor
 from app.config import TEMPLATES_DIR, STATIC_DIR, AUDIO_DIR, APP_NAME, DEBUG, BASE_DIR, DATABASE_URL, LOCAL_OPENAI_API_URL
+import serial_asyncio
 
 # Configure logging
 log_file = os.path.join(BASE_DIR, "logs.txt")
@@ -138,6 +142,11 @@ async def lifespan(app: FastAPI):
         from app.serial.monitor import start_esp32_monitor
 
         manager = get_esp32_manager()
+        if manager.monitor_task and not manager.monitor_task.done():
+            manager.monitor_task.cancel()
+            await asyncio.sleep(0)  # let event loop process cancellation
+        manager.disconnect()
+
         is_connected = False
         if not manager.serial_conn or not manager.serial_conn.is_open:
             if manager.connect():
@@ -151,8 +160,9 @@ async def lifespan(app: FastAPI):
 
         if is_connected:
             logger.info("Creating ESP32 monitoring task...")
-            monitor_task = asyncio.create_task(start_esp32_monitor())
-            logger.info("ESP32 monitoring task created.")
+            # Store the task in the manager
+            manager.monitor_task = asyncio.create_task(start_esp32_monitor())
+            logger.info("ESP32 monitoring task created and stored.")
             
     except Exception as e:
          logger.error(f"Error during ESP32 setup in lifespan startup: {str(e)}", exc_info=True)
@@ -161,15 +171,16 @@ async def lifespan(app: FastAPI):
     yield # Application runs here
     # --- Shutdown Logic --- 
     logger.info("Application shutdown: Cleaning up...")
-    if monitor_task and not monitor_task.done():
-        logger.info("Cancelling ESP32 monitoring task...")
-        monitor_task.cancel()
+    # Use manager.monitor_task if it exists
+    if manager and manager.monitor_task and not manager.monitor_task.done():
+        logger.info("Cancelling ESP32 monitoring task stored in manager...")
+        manager.monitor_task.cancel()
         try:
-            await monitor_task # Wait for cancellation
+            await manager.monitor_task # Wait for cancellation
+            manager.monitor_task = None # Clear task reference
         except asyncio.CancelledError:
              logger.info("ESP32 monitoring task successfully cancelled.")
-        except Exception as e:
-             logger.error(f"Error during ESP32 monitoring task cancellation: {str(e)}")
+             manager.monitor_task = None # Clear task reference
     # Disconnect ESP32 if manager was initialized and connected
     if manager and manager.serial_conn and manager.serial_conn.is_open:
          logger.info("Disconnecting ESP32 during lifespan shutdown.")
@@ -221,6 +232,22 @@ async def esp32_debug_page(request: Request):
     """ESP32 control and debugging page"""
     logger.info("ESP32 debug page accessed")
     return templates.TemplateResponse("esp32_debug.html", {"request": request})
+
+@app.post("/esp32/start-monitoring")
+async def start_monitoring(request: Request):
+    """Start ESP32 monitoring"""
+    manager = get_esp32_manager()
+    if manager.is_monitoring:
+        return {"status": "already_monitoring"}
+
+    if not manager.is_connected and not manager.connect():
+        raise HTTPException(status_code=500, detail="Could not connect to ESP32")
+
+    if manager.monitor_task and not manager.monitor_task.done():
+        manager.monitor_task.cancel()
+        await asyncio.sleep(0)  # let event loop process cancellation
+    manager.monitor_task = asyncio.create_task(start_esp32_monitor())
+    return {"status": "monitoring_started"}
 
 # Run the application with uvicorn when this file is executed directly
 if __name__ == "__main__":
