@@ -1,6 +1,6 @@
 import os
 import sqlite3
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
@@ -176,34 +176,36 @@ if __name__ == "__main__":
 
 # Add startup event handler to auto-connect to ESP32
 @app.on_event("startup")
-async def startup_event():
+async def startup_event(background_tasks: BackgroundTasks):
     """
     Runs when the application starts up.
     Attempts to automatically connect to ESP32 and start monitoring.
     """
     try:
-        import httpx
-        
         # First try to connect if not already connected
         from app.serial.esp32 import get_esp32_manager
+        from app.serial.monitor import start_esp32_monitor
         
         # Get ESP32 manager and try to connect
         manager = get_esp32_manager()
+        is_connected = False
         if not manager.serial_conn or not manager.serial_conn.is_open:
             if manager.connect():
                 logger.info("Auto-connected to ESP32 at startup")
+                is_connected = True
             else:
                 logger.info("Could not auto-connect to ESP32 at startup")
                 return
-        
-        # Now call the existing endpoint to start monitoring
-        async with httpx.AsyncClient() as client:
-            response = await client.post("http://localhost:8000/api/esp32/start-monitoring")
-            if response.status_code == 200:
-                result = response.json()
-                logger.info(f"ESP32 monitoring started: {result['message']}")
-            else:
-                logger.error(f"Failed to start ESP32 monitoring: {response.text}")
+        else:
+            logger.info("ESP32 already connected at startup")
+            is_connected = True
+
+        # If connected, start monitoring in the background
+        if is_connected:
+            logger.info("Starting ESP32 monitoring task in background...")
+            # Create BackgroundTasks instance and add the task
+            background_tasks.add_task(start_esp32_monitor)
+            logger.info("ESP32 monitoring task added to background.")
                 
     except Exception as e:
         logger.error(f"Error setting up ESP32 at startup: {str(e)}", exc_info=True)

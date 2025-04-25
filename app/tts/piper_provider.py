@@ -207,6 +207,7 @@ class PiperProvider(TTSProvider):
                     json_data["speaker_id"] = speaker_id
                 
                 json_line = json.dumps(json_data) + "\n"
+                print(f"json_line: {json_line}")
                 
                 # Run Piper command with JSON input
                 # Ensure piper_path is absolute
@@ -221,8 +222,8 @@ class PiperProvider(TTSProvider):
                 # Log the command being executed
                 logger.info(f"Executing piper command: {' '.join(cmd)}")
                 
-                # Prepare environment variables, specifically LD_LIBRARY_PATH
-                # LD_LIBRARY_PATH should point to the directory containing the .so files (the base dir)
+                # # Prepare environment variables, specifically LD_LIBRARY_PATH
+                # # LD_LIBRARY_PATH should point to the directory containing the .so files (the base dir)
                 piper_lib_dir = os.path.dirname(os.path.abspath(self.piper_path)) # Start with exe dir
                 # Check if expected base dir exists and use it if different
                 if os.path.isdir(self.piper_base_dir) and self.piper_base_dir != piper_lib_dir: # Use self.piper_base_dir
@@ -230,10 +231,10 @@ class PiperProvider(TTSProvider):
                 
                 current_env = os.environ.copy()
                 # Prepend piper lib directory to LD_LIBRARY_PATH
-                current_env['LD_LIBRARY_PATH'] = f"{piper_lib_dir}:{current_env.get('LD_LIBRARY_PATH', '')}".strip(':')
+                # current_env['LD_LIBRARY_PATH'] = f"{piper_lib_dir}:{current_env.get('LD_LIBRARY_PATH', '')}".strip(':')
                 
-                # Log environment variables being passed
-                logger.info(f"Passing LD_LIBRARY_PATH: {current_env['LD_LIBRARY_PATH']}")
+                # # Log environment variables being passed
+                # logger.info(f"Passing LD_LIBRARY_PATH: {current_env['LD_LIBRARY_PATH']}")
                 
                 # Execute Piper with JSON input directly to stdin and updated env
                 result = subprocess.run(
