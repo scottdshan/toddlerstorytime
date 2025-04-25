@@ -230,20 +230,23 @@ class PiperProvider(TTSProvider):
                 # Log the command being executed
                 logger.info(f"Executing piper command: {' '.join(cmd)}")
                 
-                # Log the LD_LIBRARY_PATH from the environment that will be inherited
-                inherited_ld_path = os.environ.get('LD_LIBRARY_PATH', '[Not Set In Environment]')
-                logger.info(f"Subprocess will inherit LD_LIBRARY_PATH: {inherited_ld_path}")
-                             
-                # Execute Piper with JSON input directly to stdin, inheriting the parent environment
+                                # Log the LD_LIBRARY_PATH from the environment that will be inherited
+                piper_lib_dir = os.path.dirname(os.path.abspath(self.piper_path))
+                if os.path.isdir(self.piper_base_dir) and self.piper_base_dir != piper_lib_dir:
+                    piper_lib_dir = self.piper_base_dir
+
+                current_env = os.environ.copy()
+                # This line modifies LD_LIBRARY_PATH based on the calculation above
+                current_env['LD_LIBRARY_PATH'] = f"{piper_lib_dir}:{current_env.get('LD_LIBRARY_PATH', '')}".strip(':')
+
                 result = subprocess.run(
-                    cmd, # Pass command as list
+                    cmd,
                     input=json_line,
                     capture_output=True,
                     text=True,
                     check=True,
-                    env=os.environ # Inherit parent environment directly
+                    env=current_env # Passes the modified environment
                 )
-                
                 logger.info(f"Generated audio file at {local_file_path}")
                 
                 # Save to network share if available
