@@ -10,6 +10,35 @@ from app.core.story_seed_bank import StorySeedBank
 # Initialize logging
 logger = logging.getLogger(__name__)
 
+# --- Universe Character Mapping ---
+UNIVERSE_CHARACTERS = {
+    "Paw Patrol": ["Ryder", "Chase", "Marshall", "Skye", "Rubble", "Zuma", "Rocky", "Everest", "Tracker", "Ella", "Tuck", "Rex", "Katie", "Alex Porter", "Jake"],
+    "Disney Princesses": ["Cinderella", "Ariel", "Belle", "Jasmine", "Rapunzel", "Moana", "Snow White", "Aurora", "Pocahontas", "Mulan", "Tiana", "Merida"],
+    "Toy Story": ["Woody", "Buzz Lightyear", "Jessie", "Mr. Potato Head", "Slinky Dog", "Rex", "Forky", "Bo Peep", "Hamm"],
+    "Frozen": ["Elsa", "Anna", "Olaf", "Kristoff", "Sven", "Hans", "King Agnarr", "Queen Iduna", "Duke of Weselton", "Marshmallow", "Oaken"],
+    "Cars": ["Lightning McQueen", "Mater", "Sally Carrera", "Doc Hudson", "Ramone", "Flo", "Fillmore", "Sarge", "Red", "Cruz Ramirez"],
+    "Moana": ["Moana", "Maui", "Heihei", "Pua", "Gramma Tala", "Chief Tui", "Te Fiti", "Tamatoa"],
+    "The Lion King": ["Simba", "Nala", "Timon", "Pumbaa", "Rafiki", "Zazu", "Scar", "Mufasa", "Sarabi"],
+    "Finding Nemo": ["Nemo", "Dory", "Marlin", "Crush", "Squirt", "Mr. Ray"],
+    "Monsters, Inc.": ["Sully", "Mike Wazowski", "Boo", "Randall Boggs", "Roz"],
+    "Winnie the Pooh": ["Pooh", "Piglet", "Tigger", "Eeyore", "Rabbit", "Kanga", "Roo", "Owl"],
+    "Mickey Mouse Clubhouse": ["Mickey Mouse", "Minnie Mouse", "Donald Duck", "Goofy", "Pluto", "Daisy Duck"],
+    "Peppa Pig": ["Peppa", "George", "Mummy Pig", "Daddy Pig", "Suzy Sheep", "Rebecca Rabbit"],
+    "SpongeBob SquarePants": ["SpongeBob", "Patrick Star", "Squidward Tentacles", "Mr. Krabs", "Sandy Cheeks", "Plankton"],
+    "Dora the Explorer": ["Dora", "Boots", "Swiper", "Backpack", "Map", "Isa the Iguana"],
+    "Thomas & Friends": ["Thomas", "Percy", "James", "Gordon", "Emily", "Sir Topham Hatt"],
+    "Sesame Street": ["Elmo", "Big Bird", "Cookie Monster", "Grover", "Oscar the Grouch", "Bert", "Ernie", "Abby Cadabby"],
+    "Transformers": ["Optimus Prime", "Bumblebee", "Megatron", "Starscream", "Ironhide", "Ratchet"], # (Simplified for toddlers)
+    "Super Mario Bros.": ["Mario", "Luigi", "Princess Peach", "Toad", "Yoshi", "Bowser"],
+    "Pokemon": ["Pikachu", "Ash Ketchum", "Charmander", "Bulbasaur", "Squirtle", "Jigglypuff"], # Focus on iconic early ones
+    "Barbie": ["Barbie", "Ken", "Skipper", "Stacie", "Chelsea", "Teresa"],
+    "Hello Kitty": ["Hello Kitty", "Mimmy", "Dear Daniel", "My Melody", "Keroppi"],
+    "Bluey": ["Bluey", "Bingo", "Bandit (Dad)", "Chilli (Mum)", "Lucky", "Chloe"],
+    "Octonauts": ["Captain Barnacles", "Kwazii", "Peso", "Shellington", "Dashi", "Inkling", "Tweak"],
+    "Blippi": ["Blippi", "Meekah"]
+}
+# --- End Universe Character Mapping ---
+
 class LLMProvider(ABC):
     """
     Abstract base class for LLM providers.
@@ -68,36 +97,44 @@ class LLMProvider(ABC):
         universe = story_elements.get("universe", "Magical World")
         setting = story_elements.get("setting", "Enchanted Forest")
         theme = story_elements.get("theme", "Friendship")
-        characters = story_elements.get("characters", [])
         story_length = story_elements.get("story_length", "Short (3-5 minutes)")
         child_name = story_elements.get("child_name", "Wesley")
         
-        # Generate a unique story scenario using the seed bank
+        # Determine characters to use
+        input_characters = story_elements.get("characters", [])
         character_names = []
-        if isinstance(characters, list):
-            # If characters is already a list, extract names
-            if characters and isinstance(characters[0], dict) and "character_name" in characters[0]:
-                # Extract only string names, not objects
-                for c in characters:
-                    if isinstance(c, dict) and "character_name" in c:
-                        name = c["character_name"]
-                        if isinstance(name, str):
-                            character_names.append(name)
-            else:
-                character_names = [str(c) for c in characters]
-        elif isinstance(characters, str):
-            # If characters is a string, split it
-            character_names = [c.strip() for c in characters.split(",")]
-            
-        # Ensure the child's name is included in characters if appropriate
+
+        # If specific characters were provided, use them
+        if input_characters:
+            if isinstance(input_characters, list):
+                if input_characters and isinstance(input_characters[0], dict) and "character_name" in input_characters[0]:
+                    for c in input_characters:
+                        if isinstance(c, dict) and "character_name" in c:
+                            name = c["character_name"]
+                            if isinstance(name, str):
+                                character_names.append(name)
+                else:
+                    character_names = [str(c) for c in input_characters] # Assume list of strings
+            elif isinstance(input_characters, str):
+                character_names = [c.strip() for c in input_characters.split(",")]
+        
+        # If no characters provided, try to get them from the universe mapping
+        if not character_names:
+            universe_chars = UNIVERSE_CHARACTERS.get(universe, [])
+            if universe_chars:
+                # Sample 1 to 3 characters from the universe list if available
+                k = random.randint(1, min(len(universe_chars), 3))
+                character_names = random.sample(universe_chars, k=k)
+
+        # Ensure the child's name is included if appropriate
         if child_name and child_name not in character_names:
             character_names.append(child_name)
         
-        # Ensure we have at least one character
+        # Ensure we have at least one character as a fallback
         if not character_names:
-            character_names = ["The main character"]
+            character_names = ["The main character"] # Fallback if no characters provided or found
             
-        # Generate a specific scenario for this story
+        # Generate a unique story scenario using the seed bank
         specific_scenario = self.seed_bank.get_specific_scenario(
             theme=theme,
             setting=setting,
@@ -121,37 +158,32 @@ class LLMProvider(ABC):
         else:  # Long
             target_words = 1200  # About 7-10 minutes when read aloud
         
-        # Craft prompt with the specific scenario
+        # Craft prompt aligned with fine-tuning format
         prompt = f"""
-        Create a bedtime story for a toddler named {child_name} with the following elements:
-        
-        Universe: {universe}
-        Setting: {setting}
-        Theme: {theme}
-        Characters: {characters_str}
-        
-        SPECIFIC SCENARIO TO USE: {specific_scenario}
-        
-        Story should be approximately {target_words} words, designed to take about {story_length} to read aloud.
-        
-        Make the story age-appropriate for a toddler (2-4 years old), with simple language, short sentences, 
-        and a clear beginning, middle, and end. Incorporate repetition, simple morals, and gentle humor.
-        
-        The story should engage a toddler's imagination while being soothing and appropriate for bedtime.
-        Any conflict should be mild and quickly resolved with a happy ending.
-        
-        Use sensory details that toddlers can relate to - how things feel, sound, look, taste, and smell.
-        Include some repetitive phrases or sounds that a toddler would enjoy repeating.
-        
-        IMPORTANT: Make this story UNIQUE from any other stories about these characters or in this setting.
-        Use the specific scenario provided to create a distinct story experience.
-        
-        Format the story with a clear title, and divide it into short paragraphs for easy reading aloud.
-        
-        Random seed for variation: {story_seed}
+Create a story for a toddler or pre-schooler named {child_name} with the following elements:
 
-        ONLY RETURN THE TITLE and the STORY TEXT, NOTHING ELSE, not intros and no music or anything like that, just the story text.
-        """
-        
+Universe: {universe}
+Setting: {setting}
+Theme: {theme}
+
+SPECIFIC SCENARIO TO USE: {specific_scenario}
+
+Story should be approximately {target_words} words, taking about {story_length} to read aloud.
+
+Make the story age-appropriate for a 2-5 year old:
+- Simple language, short sentences
+- Clear beginning, middle, end
+- Repetition, simple morals, gentle humor
+- Sensory details kids can relate to
+- Some repeating phrases for fun
+- Use characters from the universe if possible. Potential characters: {characters_str}. Try to naturally include 1-2 characters from this list in the story.
+
+Format with a title and short paragraphs. Unique story each time.
+
+Random seed: {story_seed}
+
+ONLY RETURN the TITLE and the STORY TEXT. DO NOT RETURN ANY FORMATTING, ASTERISKS, OR ANYTHING ELSE.
+"""
+
         logger.debug(f"Created story prompt with scenario: {specific_scenario}")
         return prompt
