@@ -1,6 +1,8 @@
 from typing import Dict, Any, AsyncGenerator
 import openai
+from openai import AsyncAzureOpenAI
 import logging
+# Removed: import re
 from app.config import AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT
 from app.llm.base import LLMProvider
 
@@ -40,8 +42,13 @@ class AzureOpenAIProvider(LLMProvider):
         
         logger.info(f"Initializing Azure OpenAI client with API base: {self.api_base}, deployment: {self.deployment_name}, API version: {self.api_version}")
         
-        # Configure Azure OpenAI client
+        # Configure Azure OpenAI clients (Sync and Async)
         self.client = openai.AzureOpenAI(
+            api_key=self.api_key,
+            api_version=self.api_version,
+            azure_endpoint=self.api_base
+        )
+        self.async_client = AsyncAzureOpenAI(
             api_key=self.api_key,
             api_version=self.api_version,
             azure_endpoint=self.api_base
@@ -99,6 +106,7 @@ class AzureOpenAIProvider(LLMProvider):
     async def generate_story_streaming(self, story_elements: Dict[str, Any]) -> AsyncGenerator[str, None]: # type: ignore
         """
         Generate a story based on provided elements using Azure OpenAI with streaming
+        (Yields raw chunks using async client)
         
         Args:
             story_elements: Dictionary containing story elements
@@ -106,15 +114,14 @@ class AzureOpenAIProvider(LLMProvider):
         Returns:
             Async generator yielding chunks of the story text as they're generated
         """
-        # Create prompt using the base class method
         prompt = self.create_story_prompt(story_elements)
         
         try:
             logger.info(f"Calling Azure OpenAI with streaming and deployment name: {self.deployment_name}")
             
-            # Call Azure OpenAI API with streaming
-            stream = self.client.chat.completions.create(
-                model=self.deployment_name,  # For Azure, model is the deployment name
+            # Use the ASYNC client and AWAIT the call
+            stream = await self.async_client.chat.completions.create(
+                model=self.deployment_name, 
                 messages=[
                     {"role": "system", "content": "You are a skilled children's storyteller who creates engaging, "
                                                 "age-appropriate bedtime stories for toddlers."},
@@ -125,12 +132,11 @@ class AzureOpenAIProvider(LLMProvider):
                 stream=True
             )
             
-            # Stream the response chunks
-            for chunk in stream:
-                if chunk.choices and chunk.choices[0].delta.content:
+            # Use ASYNC FOR to iterate the stream
+            async for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
                     
         except Exception as e:
             logger.error(f"Error in streaming story generation: {str(e)}")
-            # Don't yield error message directly as it causes frontend issues
             # The error will be handled by the endpoint's try-except block
