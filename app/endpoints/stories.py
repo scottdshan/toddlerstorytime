@@ -1003,8 +1003,9 @@ async def generate_story_and_play_local_streaming(story_request: StoryGenRequest
                     player_process.stdin.close()
                     await player_process.stdin.wait_closed() # Wait for buffer to flush
                     
-                    # Give player time to process remaining buffered audio
-                    await asyncio.sleep(0.5)  # reduced from 1.0
+                    # Give player more time to process remaining buffered audio
+                    logger.info("Giving player extra time to finish playback...")
+                    await asyncio.sleep(1.5)  # Increased from 0.5
                     logger.info("Player stdin closed.")
                 except Exception as close_err:
                      logger.warning(f"Error closing player stdin: {close_err}")
@@ -1089,7 +1090,7 @@ async def generate_story_and_play_local_streaming(story_request: StoryGenRequest
                     logger.info("Waiting for player process to finish...")
                     stdout, stderr = await asyncio.wait_for(
                         player_process.communicate(), 
-                        timeout=3.0  # Add timeout to avoid waiting forever
+                        timeout=6.0  # Increased timeout from 3.0
                     )
                     logger.info(f"Player process finished with exit code: {player_process.returncode}")
                     if stdout: 
