@@ -1,206 +1,206 @@
 import os
 import logging
 import asyncio
-import subprocess
 import uuid
 from typing import Optional, List, Dict, Any, AsyncGenerator
+import sounddevice as sd # Dependency for kokoro-onnx stream playback, might not be needed just for yielding bytes
+import numpy as np
+import io
+import wave
 
 from app.tts.base import TTSProvider
-from app.config import AUDIO_DIR # Assuming AUDIO_DIR is where temporary files might go if needed
+from app.config import AUDIO_DIR
+
+# Try importing kokoro-onnx
+try:
+    from kokoro_onnx import Kokoro
+except ImportError:
+    Kokoro = None # Handle missing dependency gracefully
+    logging.error("kokoro-onnx library not found. Please install it: pip install kokoro-onnx")
 
 logger = logging.getLogger(__name__)
 
-# Default path, assumes 'koko' is in the system PATH
-DEFAULT_KOKO_PATH = "koko" 
+# Default paths for model and voice files
+DEFAULT_MODEL_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "models", "kokoro"))
+DEFAULT_KOKORO_MODEL_PATH = os.path.join(DEFAULT_MODEL_DIR, "kokoro-v1.0.onnx")
+DEFAULT_KOKORO_VOICES_PATH = os.path.join(DEFAULT_MODEL_DIR, "voices-v1.0.bin")
 
 class KokorosProvider(TTSProvider):
     """
-    TTS provider implementation using Kokoros (local TTS via command line).
-    Uses the 'koko stream' command for streaming audio synthesis.
-    Kokoros project: https://github.com/lucasjinreal/Kokoros
+    TTS provider implementation using the kokoro-onnx library.
+    Uses the library's streaming API based on the ONNX model.
+    Library: https://github.com/thewh1teagle/kokoro-onnx
+    Model: https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX
     """
 
-    def __init__(self, voice_id: Optional[str] = None, koko_path: Optional[str] = None):
+    def __init__(self, voice_id: Optional[str] = None, 
+                 model_path: Optional[str] = None, 
+                 voices_path: Optional[str] = None):
         """
-        Initialize the Kokoros provider.
+        Initialize the Kokoros ONNX provider.
 
         Args:
             voice_id: Default voice ID to use (e.g., "af_sky"). Defaults to "af_sky".
-            koko_path: Path to the 'koko' executable. Defaults to 'koko' (assumes in PATH).
+            model_path: Path to the Kokoro ONNX model file.
+            voices_path: Path to the Kokoro voices binary file.
         """
+        if Kokoro is None:
+            raise RuntimeError("kokoro-onnx library is not installed. Cannot initialize KokorosProvider.")
+
         # Default to a known good voice if none provided
-        self.voice_id = voice_id or os.environ.get("KOKOROS_DEFAULT_VOICE_ID", "af_sky") 
+        self.default_voice_id = voice_id or os.environ.get("KOKOROS_DEFAULT_VOICE_ID", "af_sky") 
         
-        # Determine koko executable path
-        # Priority: KOKO_PATH env var, then argument, then default
-        self.koko_path = (
-            os.environ.get("KOKO_PATH") or 
-            koko_path or 
-            DEFAULT_KOKO_PATH
-        )
-        
-        # Basic check if the executable seems plausible
-        # A more robust check might involve running 'koko -h'
-        # if not os.path.exists(self.koko_path) and not shutil.which(self.koko_path):
-        #     logger.warning(f"Kokoros executable not found at specified path: {self.koko_path}. Synthesis might fail.")
+        # Determine model and voices paths
+        self.model_path = os.path.expanduser(model_path or os.environ.get("KOKORO_MODEL_PATH", DEFAULT_KOKORO_MODEL_PATH))
+        self.voices_path = os.path.expanduser(voices_path or os.environ.get("KOKORO_VOICES_PATH", DEFAULT_KOKORO_VOICES_PATH))
+
+        # Validate paths
+        if not os.path.exists(self.model_path):
+            logger.error(f"Kokoro ONNX model not found at: {self.model_path}")
+            raise FileNotFoundError(f"Kokoro ONNX model not found at: {self.model_path}")
+        if not os.path.exists(self.voices_path):
+            logger.error(f"Kokoro voices file not found at: {self.voices_path}")
+            raise FileNotFoundError(f"Kokoro voices file not found at: {self.voices_path}")
+
+        # Load the Kokoro model
+        try:
+            # Assuming Kokoro constructor doesn't block significantly.
+            # If it does, consider lazy loading or running in a thread.
+            self.kokoro = Kokoro(self.model_path, self.voices_path)
+        except Exception as e:
+            logger.error(f"Failed to load Kokoro model from {self.model_path} and voices {self.voices_path}: {e}", exc_info=True)
+            raise RuntimeError(f"Failed to load Kokoro model: {e}")
             
-        # Output directory (might not be strictly needed for pure streaming)
         self.output_dir = AUDIO_DIR
         os.makedirs(self.output_dir, exist_ok=True)
 
-        logger.info(f"Initialized Kokoros TTS Provider with executable path: {self.koko_path} and default voice: {self.voice_id}")
-
-    def _get_kokoros_voices(self) -> List[Dict[str, Any]]:
-        """
-        Placeholder for fetching available Kokoros voices.
-        Currently returns a default set as Kokoros CLI doesn't have a standard way to list voices easily.
-        The voices.json file could potentially be parsed if its location is known.
-        """
-        # TODO: Implement dynamic voice fetching if possible, e.g., parsing voices.json
-        # This might require knowing the Kokoros installation directory.
-        logger.warning("Kokoros voice listing is currently static. Add logic to parse voices.json if needed.")
-        return [
-            {"voice_id": "af_sky", "name": "Sky (Female, Standard)"},
-            {"voice_id": "af_libritts", "name": "LibriTTS (Female)"},
-            {"voice_id": "en_US-amy-low", "name": "Amy (Female, US English - Low Quality)"},
-            # Add other known voices if desired
-        ]
+        logger.info(f"Initialized Kokoros ONNX Provider with model: {self.model_path}, voices: {self.voices_path}, default voice: {self.default_voice_id}")
 
     def get_available_voices(self) -> List[Dict[str, Any]]:
         """
-        Get a list of available voices (currently static).
+        Get a list of available voices.
+        NOTE: kokoro-onnx library doesn't seem to have a public API for this.
+        Returning a static list based on known voices.
         """
-        return self._get_kokoros_voices()
+        # TODO: Check if kokoro-onnx adds a voice listing feature or parse voices.bin?
+        logger.warning("Kokoros ONNX voice listing is currently static.")
+        # Based on https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX#voicessamples
+        return [
+            # American Female
+            {"voice_id": "af_heart", "name": "Heart (American Female)"},
+            {"voice_id": "af_alloy", "name": "Alloy (American Female)"},
+            {"voice_id": "af_aoede", "name": "Aoede (American Female)"},
+            {"voice_id": "af_bella", "name": "Bella (American Female)"},
+            {"voice_id": "af_jessica", "name": "Jessica (American Female)"},
+            {"voice_id": "af_kore", "name": "Kore (American Female)"},
+            {"voice_id": "af_nicole", "name": "Nicole (American Female)"},
+            {"voice_id": "af_nova", "name": "Nova (American Female)"},
+            {"voice_id": "af_river", "name": "River (American Female)"},
+            {"voice_id": "af_sarah", "name": "Sarah (American Female)"},
+            {"voice_id": "af_sky", "name": "Sky (American Female)"},
+            # American Male
+            {"voice_id": "am_adam", "name": "Adam (American Male)"},
+            {"voice_id": "am_echo", "name": "Echo (American Male)"},
+            {"voice_id": "am_eric", "name": "Eric (American Male)"},
+            {"voice_id": "am_fenrir", "name": "Fenrir (American Male)"},
+            {"voice_id": "am_liam", "name": "Liam (American Male)"},
+            {"voice_id": "am_michael", "name": "Michael (American Male)"},
+            {"voice_id": "am_onyx", "name": "Onyx (American Male)"},
+            {"voice_id": "am_puck", "name": "Puck (American Male)"},
+            {"voice_id": "am_santa", "name": "Santa (American Male)"},
+            # British Female
+            {"voice_id": "bf_alice", "name": "Alice (British Female)"},
+            {"voice_id": "bf_emma", "name": "Emma (British Female)"},
+            {"voice_id": "bf_isabella", "name": "Isabella (British Female)"},
+            {"voice_id": "bf_lily", "name": "Lily (British Female)"},
+            # British Male
+            {"voice_id": "bm_daniel", "name": "Daniel (British Male)"},
+            {"voice_id": "bm_fable", "name": "Fable (British Male)"},
+            {"voice_id": "bm_george", "name": "George (British Male)"},
+            {"voice_id": "bm_lewis", "name": "Lewis (British Male)"},
+        ]
 
     def get_service_info(self) -> Dict[str, Any]:
         """
-        Get information about the Kokoros service.
+        Get information about the Kokoros ONNX service.
         """
         voices = self.get_available_voices()
         return {
-            'service': 'Kokoros (Local)',
-            'description': 'Kokoros is a fast, local TTS engine run via command line.',
+            'service': 'Kokoros (Local ONNX)',
+            'description': 'Kokoros TTS using the kokoro-onnx library and ONNX runtime.',
             'voices_available': len(voices),
-            'default_voice': self.voice_id,
-            'koko_executable': self.koko_path,
-            'repository': 'https://github.com/lucasjinreal/Kokoros'
+            'default_voice': self.default_voice_id,
+            'model_path': self.model_path,
+            'voices_path': self.voices_path,
+            'library': 'https://github.com/thewh1teagle/kokoro-onnx'
         }
 
     async def generate_audio_streaming(self, text: str, 
                                       voice_id: Optional[str] = None, 
                                       story_info: Optional[Dict[str, Any]] = None) -> AsyncGenerator[bytes, None]:
         """
-        Generate WAV audio data from text in a streaming fashion using 'koko stream'.
+        Generate WAV audio data from text in a streaming fashion using kokoro-onnx.
 
         Args:
             text: The text to convert to speech.
             voice_id: Optional voice ID to use (e.g., "af_sky").
-            story_info: Optional dictionary (not currently used by Kokoros).
+            story_info: Optional dictionary (not currently used).
 
         Returns:
-            Async generator yielding chunks of WAV audio data.
+            Async generator yielding chunks of raw PCM audio data (as bytes).
         """
-        process = None # Define process here to ensure it's accessible in finally
+        if not self.kokoro:
+             logger.error("Kokoro ONNX model not loaded. Cannot generate audio.")
+             yield b"" # Yield empty to avoid breaking caller
+             return
+             
+        selected_voice_id = voice_id or self.default_voice_id
+        # Speed parameter could be added if needed
+        speed = 1.0 
+        # Language - assuming 'en-us' for now based on example, might need adjustment
+        lang = "en-us" 
+        
+        logger.info(f"Starting Kokoros ONNX stream for voice: {selected_voice_id}, lang: {lang}")
+        
         try:
-            selected_voice_id = voice_id or self.voice_id
-            
-            cmd = [
-                self.koko_path,
-                "stream",
-                "--voice", selected_voice_id
-                # Add any other necessary flags for koko stream if needed
-            ]
-
-            logger.info(f"Executing Kokoros streaming command: {' '.join(cmd)}")
-
-            # Execute koko stream, piping text to stdin and reading WAV audio from stdout
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE # Capture stderr for logging errors
+            # The create_stream is async, perfect for our use case.
+            stream = self.kokoro.create_stream(
+                text,
+                voice=selected_voice_id,
+                speed=speed,
+                lang=lang,
             )
 
-            # Write text to Kokoros stdin and close it
-            if process.stdin:
-                try:
-                    # Kokoros likely expects UTF-8
-                    process.stdin.write(text.encode('utf-8'))
-                    await process.stdin.drain()
-                    process.stdin.close()
-                except (BrokenPipeError, ConnectionResetError) as e:
-                    logger.warning(f"Kokoros stdin pipe closed unexpectedly: {e}")
-                    # Attempt to read stderr for more info
-                    stderr_output = await self._read_stderr(process)
-                    logger.error(f"Kokoros stderr (on stdin close error): {stderr_output}")
-                    # Don't yield anything if we can't send input
-                    return 
-            else:
-                logger.error("Failed to get stdin pipe for Kokoros process.")
-                stderr_output = await self._read_stderr(process) # Try reading stderr
-                logger.error(f"Kokoros stderr (on stdin fail): {stderr_output}")
-                return # Don't proceed without stdin
-
-            # Read WAV audio chunks from Kokoros stdout
-            chunk_size = 4096 # Adjust chunk size as needed
-            while process.stdout and not process.stdout.at_eof():
-                chunk = await process.stdout.read(chunk_size)
-                if not chunk:
-                    break # End of stream
-                yield chunk
-                # No artificial sleep needed, yield as data arrives
-
-            # Wait for the process to finish and check for errors
-            return_code = await process.wait()
+            async for samples, sample_rate in stream:
+                # samples is likely a numpy array of float32. Convert to bytes (PCM16 for wide compatibility).
+                # Ensure data is in the range [-1, 1] before scaling
+                samples = np.clip(samples, -1.0, 1.0)
+                # Scale to 16-bit integer range
+                int_samples = (samples * 32767).astype(np.int16)
+                yield int_samples.tobytes()
             
-            if return_code != 0:
-                logger.error(f"Kokoros process exited with non-zero code: {return_code}")
-                stderr_output = await self._read_stderr(process)
-                logger.error(f"Kokoros stderr: {stderr_output}")
-                # Optionally yield an empty chunk or raise an exception if needed
-                # yield b"" # To prevent breaking consumer if it expects something
-            else:
-                 logger.info(f"Kokoros streaming completed successfully for text: {text[:50]}...")
+            logger.info(f"Kokoros ONNX streaming finished successfully.")
 
-        except FileNotFoundError:
-            logger.error(f"Kokoros executable not found at '{self.koko_path}'. Please ensure it's installed and the path is correct (or set KOKO_PATH environment variable).")
-            yield b"" # Yield empty chunk on critical error
         except Exception as e:
-            logger.error(f"Error during Kokoros streaming audio generation: {e}", exc_info=True)
-            # Attempt to read stderr if process exists
-            if process:
-                stderr_output = await self._read_stderr(process)
-                logger.error(f"Kokoros stderr (on exception): {stderr_output}")
-            yield b"" # Yield empty chunk on error to avoid breaking consumer
-        finally:
-            # Ensure the process is terminated if it's still running
-            if process and process.returncode is None:
-                try:
-                    process.terminate()
-                    await process.wait() # Wait for termination
-                    logger.warning("Kokoros process terminated during cleanup.")
-                except ProcessLookupError:
-                    logger.debug("Kokoros process already finished.") # Process might have finished between check and terminate
-                except Exception as term_err:
-                    logger.error(f"Error terminating Kokoros process: {term_err}")
+            logger.error(f"Error during Kokoros ONNX streaming: {e}", exc_info=True)
+            # Yield empty chunk on error to potentially prevent breaking consumer?
+            yield b""
 
-    async def _read_stderr(self, process: asyncio.subprocess.Process) -> str:
-        """Helper function to read stderr."""
-        if process.stderr:
-            try:
-                stderr_bytes = await process.stderr.read()
-                return stderr_bytes.decode('utf-8', errors='ignore').strip()
-            except Exception as e:
-                logger.error(f"Error reading Kokoros stderr: {e}")
-                return "[Error reading stderr]"
-        return "[stderr not available]"
+    def _generate_wav_file(self, samples: np.ndarray, sample_rate: int, file_path: str):
+        """Helper to save numpy audio samples to a WAV file."""
+        # Scale to 16-bit integer range
+        int_samples = (np.clip(samples, -1.0, 1.0) * 32767).astype(np.int16)
+        
+        with wave.open(file_path, 'wb') as wf:
+            wf.setnchannels(1)  # Assuming mono audio
+            wf.setsampwidth(2)  # 2 bytes for int16
+            wf.setframerate(sample_rate)
+            wf.writeframes(int_samples.tobytes())
 
     def generate_audio(self, text: str, voice_id: Optional[str] = None, story_info: Optional[Dict[str, Any]] = None) -> Optional[str]:
         """
-        Generate audio to a file (non-streaming). 
-        This uses the 'koko text' command.
-        
-        Note: Streaming is generally preferred for real-time applications.
+        Generate audio to a file (non-streaming) using kokoro-onnx.
+        This synthesizes the full audio first, then saves it.
         
         Args:
             text: The text to convert to speech.
@@ -210,49 +210,73 @@ class KokorosProvider(TTSProvider):
         Returns:
             Path (URL) to the generated audio file or None if generation failed.
         """
+        if not self.kokoro:
+             logger.error("Kokoro ONNX model not loaded. Cannot generate audio.")
+             return None
+             
+        selected_voice_id = voice_id or self.default_voice_id
+        speed = 1.0
+        lang = "en-us"
+
+        # Create a unique filename
+        filename_base = f"kokoros_onnx_audio_{uuid.uuid4()}"
+        output_filename = f"{filename_base}.wav"
+        output_filepath = os.path.join(self.output_dir, output_filename)
+
+        logger.info(f"Generating Kokoros ONNX audio file for voice: {selected_voice_id}, lang: {lang}")
+
         try:
-            selected_voice_id = voice_id or self.voice_id
+            # Run generation (this might be blocking, consider thread if slow)
+            # The 'generate' method seems to be synchronous in the library
+            # If it exists and works like the stream example suggests.
+            # Assuming a generate method similar to the stream exists or can be adapted.
+            # Let's simulate it by collecting stream output for now.
             
-            # Create a unique filename
-            # Using a UUID for simplicity, but could use story_info like other providers
-            filename_base = f"kokoros_audio_{uuid.uuid4()}"
-            output_filename = f"{filename_base}.wav" # Kokoros default output seems to be wav
-            output_filepath = os.path.join(self.output_dir, output_filename)
+            # --- Simulation using stream --- 
+            all_samples = []
+            sample_rate = 24000 # Assume default sample rate from example
             
-            cmd = [
-                self.koko_path,
-                "text",
-                text, # Pass text directly as argument
-                "--voice", selected_voice_id,
-                "--output", output_filepath 
-            ]
-
-            logger.info(f"Executing Kokoros file generation command: {' '.join(cmd)}")
-
-            # Run the command synchronously for file generation
-            result = subprocess.run(cmd, capture_output=True, text=True, check=False, encoding='utf-8')
-
-            if result.returncode != 0:
-                logger.error(f"Kokoros command failed with code {result.returncode}")
-                logger.error(f"Stderr: {result.stderr}")
-                logger.error(f"Stdout: {result.stdout}")
+            async def collect_audio():
+                nonlocal all_samples, sample_rate
+                stream = self.kokoro.create_stream(text, voice=selected_voice_id, speed=speed, lang=lang)
+                first_chunk = True
+                async for samples_chunk, rate_chunk in stream:
+                    if first_chunk:
+                        sample_rate = rate_chunk
+                        first_chunk = False
+                    all_samples.append(samples_chunk)
+            
+            # Run the async stream collector synchronously
+            try:
+                asyncio.run(collect_audio())
+            except RuntimeError as e:
+                 # Handle case where asyncio event loop is already running (e.g., in FastAPI)
+                 if "cannot run loop" in str(e):
+                      logger.warning("Asyncio loop already running. Using existing loop for Kokoro audio generation.")
+                      # Get the current event loop
+                      loop = asyncio.get_event_loop()
+                      # Run the coroutine in the existing loop
+                      loop.run_until_complete(collect_audio())
+                 else:
+                      raise e # Re-raise other RuntimeErrors
+            
+            if not all_samples:
+                logger.error("Kokoro ONNX generation produced no audio samples.")
                 return None
+                
+            # Concatenate all sample chunks
+            full_audio = np.concatenate(all_samples)
+            # --- End Simulation --- 
             
-            if not os.path.exists(output_filepath):
-                 logger.error(f"Kokoros command succeeded but output file not found: {output_filepath}")
-                 logger.error(f"Stderr: {result.stderr}")
-                 logger.error(f"Stdout: {result.stdout}")
-                 return None
+            # Save the concatenated audio to a WAV file
+            self._generate_wav_file(full_audio, sample_rate, output_filepath)
 
-            logger.info(f"Kokoros generated audio file: {output_filepath}")
+            logger.info(f"Kokoros ONNX generated audio file: {output_filepath}")
             
-            # Return the web-accessible path (assuming /static/audio maps to AUDIO_DIR)
+            # Return the web-accessible path
             relative_path = f"/static/audio/{output_filename}"
             return relative_path
 
-        except FileNotFoundError:
-            logger.error(f"Kokoros executable not found at '{self.koko_path}'. Cannot generate audio file.")
-            return None
         except Exception as e:
-            logger.error(f"Error generating audio file with Kokoros: {e}", exc_info=True)
+            logger.error(f"Error generating audio file with Kokoros ONNX: {e}", exc_info=True)
             return None 
