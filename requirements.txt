@@ -16,6 +16,6 @@ pyserial
 
 # Added for Kokoro ONNX TTS
 kokoro-onnx
-numpy==1.24.6
+numpy==1.26.4
 onnxruntime
 sounddevice
