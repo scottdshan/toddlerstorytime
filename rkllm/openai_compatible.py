@@ -14,12 +14,15 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 from model_class import RKLLMLoaderClass, available_models
 from contextlib import asynccontextmanager
+import os
 
 # ---------- RKLLM bootstrap ----------
 MODELS = available_models()
-if not MODELS:
-    raise RuntimeError("No .rkllm files found in ./models – download one first.")
-MODEL_KEY = next(iter(MODELS))                         # pick the first model
+print("Available models:", list(MODELS.keys()))
+model_env = os.environ.get("RKLLM_MODEL")
+MODEL_KEY = model_env if model_env is not None else next(iter(MODELS))
+if MODEL_KEY not in MODELS:
+    raise RuntimeError(f"Model '{MODEL_KEY}' not found in available models: {list(MODELS.keys())}")
 LLM = RKLLMLoaderClass(model=MODEL_KEY)
 
 # ---------- Pydantic shapes mimicking OpenAI ----------
