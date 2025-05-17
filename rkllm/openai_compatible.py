@@ -73,30 +73,46 @@ async def chat(req: _ChatReq):
         raise HTTPException(400, "messages list empty")
     prompt = req.messages[-1].content
 
-    
-
     # generator from RKLLM
     stream = LLM.get_RKLLM_output(prompt, [])          # no history
 
     if req.stream:
         # For streaming mode: we'll compute metrics after generation finishes
         tokens_generated = 0
+        prompt_end_ts = None
+        gen_end_ts = None
         async def event_stream():
-            nonlocal tokens_generated
+            nonlocal tokens_generated, prompt_end_ts, gen_end_ts
             prev = ""
             for piece in stream:
                 text = piece["content"]
                 delta = text[len(prev):]               # new fragment only
                 prev = text
+                if prompt_end_ts is None and delta:
+                    prompt_end_ts = time.time()  # First token generated
                 tokens_generated += len(delta.split())
                 if delta:
                     chunk = _completion_chunk(delta)
                     yield f"data: {chunk}\n\n"
+            gen_end_ts = time.time()
             # After stream completes, optionally send metrics
             if req.measure:
-                elapsed = max(time.time() - start_ts, 1e-6)
-                tps = tokens_generated / elapsed
-                metrics = {"timestamp": start_ts, "duration_seconds": elapsed, "token_count": tokens_generated, "tokens_per_second": tps}
+                total_elapsed = max(gen_end_ts - start_ts, 1e-6)
+                prompt_proc_time = (prompt_end_ts - start_ts) if prompt_end_ts else 0.0
+                gen_time = (gen_end_ts - prompt_end_ts) if prompt_end_ts else 0.0
+                tps = tokens_generated / gen_time if gen_time > 0 else 0.0
+                total_tps = tokens_generated / total_elapsed if total_elapsed > 0 else 0.0
+                prompt_processing_tokens_per_second = 1 / prompt_proc_time if prompt_proc_time > 0 else 0.0
+                metrics = {
+                    "timestamp": start_ts,
+                    "total_duration_seconds": total_elapsed,
+                    "prompt_processing_seconds": prompt_proc_time,
+                    "generation_seconds": gen_time,
+                    "token_count": tokens_generated,
+                    "tokens_per_second": tps,
+                    "total_tokens_per_second": total_tps,
+                    "prompt_processing_tokens_per_second": prompt_processing_tokens_per_second,
+                }
                 yield f"data: {{\"metrics\": {metrics}}}\n\n"
             # send final [DONE] marker
             yield "data: [DONE]\n\n"
@@ -105,20 +121,33 @@ async def chat(req: _ChatReq):
 
     # non-stream mode: collect full text then return once
     _full_text = ""  # Initialize to empty string
+    prompt_end_ts = None
     for _piece in stream:  # Iterate through the stream of pieces
         # Assuming each piece is a dict with a "content" key holding cumulative text
         if isinstance(_piece, dict) and "content" in _piece:
+            if prompt_end_ts is None:
+                prompt_end_ts = time.time()  # First token generated
             _full_text = _piece["content"]  # The last piece's content is the full text
+    gen_end_ts = time.time()
     full = _full_text
     resp = _completion_chunk(full, finish="stop")
     if req.measure:
         tokens_generated = len(full.split())
-        elapsed = max(time.time() - start_ts, 1e-6)
+        total_elapsed = max(gen_end_ts - start_ts, 1e-6)
+        prompt_proc_time = (prompt_end_ts - start_ts) if prompt_end_ts else 0.0
+        gen_time = (gen_end_ts - prompt_end_ts) if prompt_end_ts else 0.0
+        tps = tokens_generated / gen_time if gen_time > 0 else 0.0
+        total_tps = tokens_generated / total_elapsed if total_elapsed > 0 else 0.0
+        prompt_processing_tokens_per_second = 1 / prompt_proc_time if prompt_proc_time > 0 else 0.0
         resp["metrics"] = {
             "timestamp": start_ts,
-            "duration_seconds": elapsed,
+            "total_duration_seconds": total_elapsed,
+            "prompt_processing_seconds": prompt_proc_time,
+            "generation_seconds": gen_time,
             "token_count": tokens_generated,
-            "tokens_per_second": tokens_generated / elapsed,
+            "tokens_per_second": tps,
+            "total_tokens_per_second": total_tps,
+            "prompt_processing_tokens_per_second": prompt_processing_tokens_per_second,
         }
     resp["object"] = "chat.completion"
     return JSONResponse(resp)
