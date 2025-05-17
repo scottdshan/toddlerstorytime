@@ -13,6 +13,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 from model_class import RKLLMLoaderClass, available_models
+from contextlib import asynccontextmanager
 
 # ---------- RKLLM bootstrap ----------
 MODELS = available_models()
@@ -51,7 +52,14 @@ def _completion_chunk(delta: str, idx: int = 0, finish: Optional[str] = None) ->
     }
 
 # ---------- FastAPI ----------
-app = FastAPI(title="RKLLM-OpenAI bridge")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup logic (if any) would go here
+    yield
+    # Shutdown logic
+    LLM.release()
+
+app = FastAPI(title="RKLLM-OpenAI bridge", lifespan=lifespan)
 
 @app.post("/v1/chat/completions")
 async def chat(req: _ChatReq):
@@ -88,7 +96,3 @@ async def chat(req: _ChatReq):
     resp = _completion_chunk(full, finish="stop")
     resp["object"] = "chat.completion"
     return JSONResponse(resp)
-
-@app.on_event("shutdown")
-def _close():
-    LLM.release()

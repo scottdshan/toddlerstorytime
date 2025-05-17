@@ -13,8 +13,8 @@ elevenlabs
 boto3
 requests
 pyserial
+transformers
 
-# Added for Kokoro ONNX TTS
 kokoro-onnx
 numpy==1.26.4
 onnxruntime
