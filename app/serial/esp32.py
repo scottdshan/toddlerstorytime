@@ -41,6 +41,7 @@ class ESP32SerialManager:
         self.baud_rate = baud_rate
         self.timeout = timeout
         self.serial_conn: Optional[serial.Serial] = None
+        self.monitor_task: Optional[asyncio.Task] = None
         
     @staticmethod
     def list_available_ports() -> List[str]:
@@ -151,6 +152,19 @@ class ESP32SerialManager:
             logger.error(f"Error monitoring serial: {str(e)}")
         finally:
             self.disconnect()
+
+    # New convenience properties -------------------------------------------------
+    @property
+    def is_connected(self) -> bool:
+        """Return True if serial connection is open."""
+        return self.serial_conn is not None and self.serial_conn.is_open
+    
+    @property
+    def is_monitoring(self) -> bool:
+        """Return True if a monitor task exists and is still running."""
+        return self.monitor_task is not None and (not self.monitor_task.done())
+
+    # ---------------------------------------------------------------------------
 
 # Singleton instance
 _esp32_manager: Optional[ESP32SerialManager] = None

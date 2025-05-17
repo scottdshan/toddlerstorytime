@@ -1,16 +1,22 @@
 import os
 import sqlite3
-from fastapi import FastAPI, Request
+import asyncio
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request, BackgroundTasks, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 import logging
+from typing import Optional
 
-from app.endpoints import stories, audio, integrations, preferences, streaming, esp32
+from app.endpoints import stories, audio, integrations, preferences, esp32
 from app.db.database import Base, engine
+from app.serial.esp32 import get_esp32_manager
+from app.serial.monitor import start_esp32_monitor
 from app.config import TEMPLATES_DIR, STATIC_DIR, AUDIO_DIR, APP_NAME, DEBUG, BASE_DIR, DATABASE_URL, LOCAL_OPENAI_API_URL
+import serial_asyncio
 
 # Configure logging
 log_file = os.path.join(BASE_DIR, "logs.txt")
@@ -86,8 +92,42 @@ check_database_schema()
 # Create the database tables
 Base.metadata.create_all(bind=engine)
 
-# Initialize FastAPI app
-app = FastAPI(title=APP_NAME, debug=DEBUG)
+# Lifespan manager for startup/shutdown events
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup Logic...
+    logger.info("Application startup: Initializing ESP32 connection and monitoring...")
+    manager = get_esp32_manager()
+    # cancel running task if exists
+    if manager.monitor_task and not manager.monitor_task.done():
+        manager.monitor_task.cancel()
+        await asyncio.sleep(0)
+        manager.monitor_task = None
+    manager.disconnect()
+
+    if not manager.is_connected:
+        if manager.connect():
+            logger.info("ESP32 connected during startup")
+            manager.monitor_task = asyncio.create_task(start_esp32_monitor())
+        else:
+            logger.warning("ESP32 auto-connect failed during startup")
+
+    yield  # --- Application runs ---
+
+    # Shutdown Logic
+    if manager.monitor_task and not manager.monitor_task.done():
+        manager.monitor_task.cancel()
+        try:
+            await manager.monitor_task
+        except asyncio.CancelledError:
+            pass
+        manager.monitor_task = None
+    if manager.is_connected:
+        manager.disconnect()
+    logger.info("Application shutdown complete.")
+
+# Initialize FastAPI app after lifespan defined
+app = FastAPI(title=APP_NAME, debug=DEBUG, lifespan=lifespan)
 
 # Add exception handlers for better error messages
 @app.exception_handler(RequestValidationError)
@@ -169,42 +209,23 @@ async def esp32_debug_page(request: Request):
     logger.info("ESP32 debug page accessed")
     return templates.TemplateResponse("esp32_debug.html", {"request": request})
 
+@app.post("/esp32/start-monitoring")
+async def start_monitoring(request: Request):
+    """Start ESP32 monitoring"""
+    manager = get_esp32_manager()
+    if manager.is_monitoring:
+        return {"status": "already_monitoring"}
+
+    if not manager.is_connected and not manager.connect():
+        raise HTTPException(status_code=500, detail="Could not connect to ESP32")
+
+    if manager.monitor_task and not manager.monitor_task.done():
+        manager.monitor_task.cancel()
+        await asyncio.sleep(0)  # let event loop process cancellation
+    manager.monitor_task = asyncio.create_task(start_esp32_monitor())
+    return {"status": "monitoring_started"}
+
 # Run the application with uvicorn when this file is executed directly
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
-
-# Add startup event handler to auto-connect to ESP32
-@app.on_event("startup")
-async def startup_event():
-    """
-    Runs when the application starts up.
-    Attempts to automatically connect to ESP32 and start monitoring.
-    """
-    try:
-        import httpx
-        
-        # First try to connect if not already connected
-        from app.serial.esp32 import get_esp32_manager
-        
-        # Get ESP32 manager and try to connect
-        manager = get_esp32_manager()
-        if not manager.serial_conn or not manager.serial_conn.is_open:
-            if manager.connect():
-                logger.info("Auto-connected to ESP32 at startup")
-            else:
-                logger.info("Could not auto-connect to ESP32 at startup")
-                return
-        
-        # Now call the existing endpoint to start monitoring
-        async with httpx.AsyncClient() as client:
-            response = await client.post("http://localhost:8000/api/esp32/start-monitoring")
-            if response.status_code == 200:
-                result = response.json()
-                logger.info(f"ESP32 monitoring started: {result['message']}")
-            else:
-                logger.error(f"Failed to start ESP32 monitoring: {response.text}")
-                
-    except Exception as e:
-        logger.error(f"Error setting up ESP32 at startup: {str(e)}", exc_info=True)
-        # Non-fatal error, application should still start

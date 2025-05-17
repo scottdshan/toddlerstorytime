@@ -10,6 +10,7 @@ import logging
 import os
 from typing import Optional, Dict, Any
 import httpx
+import json
 
 from app.serial.esp32 import get_esp32_manager, ESP32Selections
 from app.serial.converter import esp32_selection_to_story_request, esp32_selections_to_story_request
@@ -49,17 +50,64 @@ async def process_character_selection(selections: ESP32Selections) -> None:
         story_request = esp32_selections_to_story_request(selections)
         async with httpx.AsyncClient() as client:
             try:
-                response = await client.post(
-                    "http://localhost:8000/api/stories/generate",
+                # Use proper streaming approach with no timeout for the response
+                async with client.stream(
+                    "POST",
+                    "http://localhost:8000/api/stories/generate_and_play_local_streaming",
                     json=story_request.dict(),
-                    timeout=120.0
-                )
-                if response.status_code != 201:
-                    logger.error(f"Failed to generate story: {response.text}")
-                else:
-                    story_data = response.json()
-                    story_id = story_data.get("id")
-                    logger.info(f"Successfully generated story with ID: {story_id}")
+                    timeout=None  # No timeout for long stories
+                ) as response:
+                    if response.status_code != 200:
+                        logger.error(f"Failed to generate story: Status {response.status_code}")
+                    else:
+                        logger.info(f"Successfully started local audio playback (status: {response.status_code})")
+                        
+                        # Process events from the stream in a non-blocking way
+                        try:
+                            story_id = None
+                            title = None
+                            
+                            # Read key events up to a reasonable limit (avoid blocking indefinitely)
+                            event_count = 0
+                            max_events = 100  # Reasonable limit to prevent indefinite waiting
+                            
+                            async for line in response.aiter_lines():
+                                if not line.strip():
+                                    continue
+                                    
+                                # Process only a limited number of events to avoid blocking too long
+                                event_count += 1
+                                if event_count > max_events:
+                                    logger.info(f"Reached max event count ({max_events}), stopping event processing")
+                                    break
+                                    
+                                # Parse SSE format: "data: {...}"
+                                if line.startswith("data:"):
+                                    try:
+                                        event_data = json.loads(line[5:].strip())
+                                        # Extract key information
+                                        if "event" in event_data and event_data["event"] == "complete":
+                                            if "data" in event_data and "story_id" in event_data["data"]:
+                                                story_id = event_data["data"]["story_id"]
+                                                title = event_data["data"].get("title", "Unknown Title")
+                                                logger.info(f"Story completed and saved with ID: {story_id}, Title: {title}")
+                                                # Once we have the story ID, we can stop processing events
+                                                break
+                                        elif "status" in event_data:
+                                            logger.info(f"Playback status: {event_data['status']}")
+                                            # If we get "Playback complete", we can stop monitoring
+                                            if event_data.get('status') == 'Playback complete':
+                                                break
+                                        elif "error" in event_data:
+                                            logger.error(f"Playback error: {event_data['error']}")
+                                    except json.JSONDecodeError:
+                                        pass  # Skip lines that aren't valid JSON
+                        except Exception as stream_err:
+                            # Just log the error but don't fail - the endpoint is still working
+                            # and the playback is happening on the server
+                            logger.error(f"Error processing event stream: {stream_err}")
+                            
+                        logger.info("Story playback is in progress - monitor complete")
             except Exception as inner_e:
                 logger.error(f"Error generating story: {inner_e}", exc_info=True)
     except Exception as e:

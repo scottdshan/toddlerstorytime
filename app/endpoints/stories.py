@@ -11,6 +11,7 @@ import base64
 import pysbd
 import re
 import uuid
+from collections import deque # Use deque for efficient sentence buffer
 
 from app.db.database import get_db
 from app.schemas.story import (
@@ -580,80 +581,112 @@ async def generate_story_streaming(story_request: StoryGenRequest, request: Requ
                 }
                 yield f"data: {json.dumps(metadata)}\n\n"
                 
-                # Buffer for collecting the story text as it's generated
+                # Buffers
                 full_text = ""
                 chunk_buffer = ""
-                full_audio_data = b"" # Initialize buffer for full audio
+                sentence_buffer = deque() # Buffer for complete sentences
+                sentence_batch_size = 10
+                full_audio_data = b""
                 
-                # Get the streaming response from the LLM provider and properly await it
+                # Get the streaming response from the LLM provider
                 try:
                     async for text_chunk in llm_provider.generate_story_streaming(story_elements): # type: ignore
                         full_text += text_chunk
                         chunk_buffer += text_chunk
                         
-                        # Send text chunk to the client
-                        text_event = {
-                            "event": "text",
-                            "data": {"chunk": text_chunk}
-                        }
-                        yield f"data: {json.dumps(text_event)}\n\n"
-                        
-                        # If we're generating audio and have enough text, process it
-                        if generate_audio and tts_provider and len(chunk_buffer) >= 50:
-                            # Look for sentence endings to make natural breaks
+                        # --- Process text into sentences and batch them ---
+                        # Check for complete sentences using the segmenter
+                        # Reduced threshold slightly to trigger segmentation more often
+                        if len(chunk_buffer) >= 40: 
                             sentences = segmenter.segment(chunk_buffer)
                             if sentences and len(sentences) > 1:
-                                # Process complete sentences except the last one which might be incomplete
-                                text_to_process = " ".join(sentences[:-1])
-                                chunk_buffer = sentences[-1]  # Keep the potentially incomplete sentence
-                                
+                                # Add all complete sentences to the sentence buffer
+                                sentence_buffer.extend(sentences[:-1])
+                                chunk_buffer = sentences[-1] # Keep the last potentially incomplete sentence
+
+                                # Check if we have a full batch of sentences
+                                while len(sentence_buffer) >= sentence_batch_size:
+                                    # Get batch of sentences
+                                    sentences_to_process = [sentence_buffer.popleft() for _ in range(sentence_batch_size)]
+                                    text_batch = " ".join(sentences_to_process).strip()
+                                    
+                                    # Yield the text batch
+                                    text_event = {
+                                        "event": "text_batch", # Use a new event type for batches
+                                        "data": {"batch": text_batch}
+                                    }
+                                    yield f"data: {json.dumps(text_event)}\n\n"
+                                    logger.debug(f"Yielded text batch ({len(sentences_to_process)} sentences)")
+
+                                    # Generate audio for the batch if enabled
+                                    if generate_audio and tts_provider:
+                                        try:
+                                            async for audio_chunk in tts_provider.generate_audio_streaming( # type: ignore
+                                                text=text_batch, 
+                                                voice_id=story_request.voice_id
+                                            ):
+                                                if audio_chunk: # Ensure chunk is not empty
+                                                    b64_audio = base64.b64encode(audio_chunk).decode('utf-8')
+                                                    audio_event = {
+                                                        "event": "audio_batch", # Use a new event type
+                                                        "data": {
+                                                            "chunk": b64_audio,
+                                                            "text_ref": text_batch[:50] + "..." # Reference text
+                                                        }
+                                                    }
+                                                    yield f"data: {json.dumps(audio_event)}\n\n"
+                                                    full_audio_data += audio_chunk
+                                        except Exception as audio_err:
+                                            logger.error(f"Error generating streaming audio for batch: {str(audio_err)}")
+                                            # Optionally yield an error event
+                                            # yield f"data: {json.dumps({'event': 'error', 'data': {'message': f'Audio generation error: {str(audio_err)}'}})}\n\n"
+
+                        # --- End sentence batching logic ---
+
+                    # --- Process remaining text/sentences after stream ends ---
+                    # Add any final partial sentence from chunk_buffer
+                    if chunk_buffer.strip():
+                        final_sentences = segmenter.segment(chunk_buffer)
+                        sentence_buffer.extend(final_sentences)
+                        chunk_buffer = "" # Clear chunk buffer
+
+                    # Process remaining sentences in the buffer (batches or individually)
+                    while sentence_buffer:
+                        # Take up to batch_size sentences
+                        batch_count = min(len(sentence_buffer), sentence_batch_size)
+                        sentences_to_process = [sentence_buffer.popleft() for _ in range(batch_count)]
+                        text_batch = " ".join(sentences_to_process).strip()
+
+                        if text_batch: # Ensure batch is not empty
+                            # Yield the final text batch
+                            text_event = {
+                                "event": "text_batch",
+                                "data": {"batch": text_batch}
+                            }
+                            yield f"data: {json.dumps(text_event)}\n\n"
+                            logger.debug(f"Yielded final text batch ({len(sentences_to_process)} sentences)")
+
+                            # Generate audio for the final batch if enabled
+                            if generate_audio and tts_provider:
                                 try:
-                                    # Process each audio chunk directly
                                     async for audio_chunk in tts_provider.generate_audio_streaming( # type: ignore
-                                        text=text_to_process,
+                                        text=text_batch, 
                                         voice_id=story_request.voice_id
                                     ):
-                                        # Convert binary audio chunk to base64 to send via SSE
-                                        b64_audio = base64.b64encode(audio_chunk).decode('utf-8')
-                                        
-                                        audio_event = {
-                                            "event": "audio",
-                                            "data": {
-                                                "chunk": b64_audio,
-                                                "text": text_to_process
+                                         if audio_chunk:
+                                            b64_audio = base64.b64encode(audio_chunk).decode('utf-8')
+                                            audio_event = {
+                                                "event": "audio_batch",
+                                                "data": {
+                                                    "chunk": b64_audio,
+                                                    "text_ref": text_batch[:50] + "..."
+                                                }
                                             }
-                                        }
-                                        yield f"data: {json.dumps(audio_event)}\n\n"
-                                        # Accumulate raw audio data
-                                        full_audio_data += audio_chunk
+                                            yield f"data: {json.dumps(audio_event)}\n\n"
+                                            full_audio_data += audio_chunk
                                 except Exception as audio_err:
-                                    logger.error(f"Error generating streaming audio: {str(audio_err)}")
-                                    # Continue with text generation even if audio fails
-                
-                    # Process any remaining text for audio
-                    if generate_audio and chunk_buffer and tts_provider:
-                        try:
-                            # Process final chunk
-                            async for audio_chunk in tts_provider.generate_audio_streaming( # type: ignore
-                                text=chunk_buffer,
-                                voice_id=story_request.voice_id
-                            ):
-                                b64_audio = base64.b64encode(audio_chunk).decode('utf-8')
-                                
-                                audio_event = {
-                                    "event": "audio",
-                                    "data": {
-                                        "chunk": b64_audio,
-                                        "text": chunk_buffer
-                                    }
-                                }
-                                yield f"data: {json.dumps(audio_event)}\n\n"
-                                # Accumulate raw audio data
-                                full_audio_data += audio_chunk
-                        except Exception as audio_err:
-                            logger.error(f"Error generating final streaming audio: {str(audio_err)}")
-                            # Continue with saving the story even if audio fails
-                
+                                    logger.error(f"Error generating final streaming audio batch: {str(audio_err)}")
+
                 except Exception as text_err:
                     logger.error(f"Error generating streaming text: {str(text_err)}")
                     error_event = {
@@ -740,14 +773,14 @@ async def generate_story_streaming(story_request: StoryGenRequest, request: Requ
                     yield f"data: {json.dumps(error_event)}\n\n"
             
             except Exception as e:
-                logger.error(f"Unexpected error in streaming content generation: {str(e)}", exc_info=True)
+                logger.error(f"Error during streaming content generation: {str(e)}", exc_info=True)
                 error_event = {
                     "event": "error",
-                    "data": {"message": f"Unexpected error: {str(e)}"}
+                    "data": {"message": f"Streaming failed: {str(e)}"}
                 }
                 yield f"data: {json.dumps(error_event)}\n\n"
         
-        # Return a streaming response with event-stream content type
+        # Return the streaming response with event-stream content type
         return StreamingResponse(
             generate_streaming_content(),
             media_type="text/event-stream"
@@ -760,3 +793,364 @@ async def generate_story_streaming(story_request: StoryGenRequest, request: Requ
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_msg
         )
+
+@router.post("/generate_and_play_local_streaming", status_code=status.HTTP_200_OK)
+async def generate_story_and_play_local_streaming(story_request: StoryGenRequest, request: Request, db: Session = Depends(get_db)):
+    """
+    Generate a new story and play it locally chunk-by-chunk using aplay.
+    Streams status/error messages back to the client.
+    """
+    player_process = None # Ensure player_process is defined for finally block
+
+    async def generate_and_play_stream():
+        nonlocal player_process # Allow modification of the outer scope variable
+        
+        # Define generate_audio for this scope
+        generate_audio = True # Audio is always generated for local playback
+        
+        try:
+            logger.info(f"Local playback streaming request received: {story_request.dict()}")
+
+            # --- Parameter Setup (Copied from generate_story_streaming) ---
+            if story_request.llm_provider: os.environ["LLM_PROVIDER"] = story_request.llm_provider
+            if story_request.tts_provider: os.environ["TTS_PROVIDER"] = story_request.tts_provider
+            if story_request.voice_id: os.environ["TTS_VOICE_ID"] = story_request.voice_id
+
+            characters = [char.character_name for char in story_request.characters] if story_request.characters else []
+            story_elements = {
+                "universe": story_request.universe or "",
+                "setting": story_request.setting or "",
+                "theme": story_request.theme or "",
+                "characters": characters or [],
+                "story_length": story_request.story_length or "Short (3-5 minutes)",
+                "child_name": story_request.child_name or "Wesley",
+                "randomize": True if not (story_request.universe and story_request.setting and story_request.theme and characters) else False
+            }
+            # --- End Parameter Setup ---
+
+            # Providers
+            llm_provider = LLMFactory.get_provider(os.environ.get("LLM_PROVIDER", "openai"))
+            # Always need TTS for local playback
+            tts_provider = TTSFactory.get_provider(os.environ.get("TTS_PROVIDER", "piper")) # Default to piper maybe?
+
+            # === Start Audio Player Process ===
+            # Raspberry Pi compatible aplay settings
+            player_cmd = [
+                "aplay",
+                # Use default device instead of explicit hardware device
+                "-r", "22050",          # Sample Rate
+                "-f", "S16_LE",         # Format (Signed 16-bit Little Endian)
+                "-c", "1",              # Channels (Mono)
+                # Add the -q flag for quiet mode
+                "-q",                   # Quiet mode - less logging
+                "-"                     # Read from stdin
+            ]
+            
+            logger.info(f"Starting audio player: {' '.join(player_cmd)}")
+            try:
+                # Run a diagnostic check first
+                diag_process = await asyncio.create_subprocess_exec(
+                    "aplay", "--version",
+                    stdout=asyncio.subprocess.PIPE
+                )
+                stdout, _ = await diag_process.communicate()
+                logger.info(f"Audio player version: {stdout.decode().split()[1] if stdout else 'unknown'}")
+                
+                # Start the player process
+                player_process = await asyncio.create_subprocess_exec(
+                    *player_cmd,
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                logger.info(f"Player process started (PID: {player_process.pid})")
+                # Send an initial status message back to the client
+                yield f"data: {json.dumps({'status': 'Player started'})}\n\n"
+
+            except FileNotFoundError:
+                logger.error(f"Audio player command ('{player_cmd[0]}') not found. Ensure it is installed and in PATH.")
+                yield f"data: {json.dumps({'error': 'Audio player not found'})}\n\n"
+                return
+            except Exception as player_err:
+                logger.error(f"Failed to start audio player: {player_err}", exc_info=True)
+                yield f"data: {json.dumps({'error': f'Failed to start player: {player_err}'})}\n\n"
+                return
+            # === End Start Audio Player Process ===
+
+            # Enable the player to initialize - smaller delay compared to before
+            logger.info("Allowing audio player to initialize...")
+            await asyncio.sleep(0.1)
+            
+            # Buffers
+            full_text = ""
+            chunk_buffer = ""
+            sentence_buffer = deque() # Buffer for complete sentences
+            sentence_batch_size = 10
+            full_audio_data = b""
+
+            # --- Main Generation and Piping Loop ---
+            try:
+                async for text_chunk in llm_provider.generate_story_streaming(story_elements):
+                    full_text += text_chunk
+                    chunk_buffer += text_chunk
+
+                    # --- Process text into sentences and batch them ---
+                    if len(chunk_buffer) >= 40:
+                        sentences = segmenter.segment(chunk_buffer)
+                        if sentences and len(sentences) > 1:
+                            sentence_buffer.extend(sentences[:-1])
+                            chunk_buffer = sentences[-1]
+
+                            while len(sentence_buffer) >= sentence_batch_size:
+                                sentences_to_process = [sentence_buffer.popleft() for _ in range(sentence_batch_size)]
+                                text_batch = " ".join(sentences_to_process).strip()
+
+                                # --- Generate audio for the batch and pipe it --- 
+                                if generate_audio and tts_provider: # generate_audio will be True here
+                                    try:
+                                        async for audio_chunk in tts_provider.generate_audio_streaming(
+                                            text=text_batch,
+                                            voice_id=story_request.voice_id
+                                        ):
+                                            if audio_chunk:
+                                                # Pipe audio chunk to player
+                                                if player_process and player_process.returncode is None and player_process.stdin and not player_process.stdin.is_closing():
+                                                    try:
+                                                        logger.debug(f"Writing {len(audio_chunk)} bytes to player for batch")
+                                                        player_process.stdin.write(audio_chunk)
+                                                        await player_process.stdin.drain()
+                                                        full_audio_data += audio_chunk # Accumulate for saving
+                                                    except ConnectionResetError:
+                                                        logger.warning("Player process stdin connection lost during batch write.")
+                                                        # Attempt restart or break might go here
+                                                        break # Exit audio loop for this batch
+                                                    except Exception as write_err:
+                                                         logger.error(f"Error writing batch to player stdin: {write_err}")
+                                                         break # Exit audio loop for this batch
+                                                else:
+                                                    logger.warning("Player stdin not available or closing, cannot pipe audio batch.")
+                                                    break # Exit audio loop for this batch
+                                        # Check if player is still alive after batch audio generation
+                                        if not player_process or player_process.returncode is not None or not player_process.stdin or player_process.stdin.is_closing():
+                                            logger.warning("Player process ended or stdin closed during batch audio generation.")
+                                            break # Exit the sentence processing loop
+                                            
+                                    except Exception as audio_err:
+                                        logger.error(f"Error generating streaming audio for batch: {str(audio_err)}")
+                                        # Continue generating text? Maybe yield an error?
+                                
+                                # Check again if we need to break out of the sentence processing loop
+                                if not player_process or player_process.returncode is not None:
+                                     break # Exit while len(sentence_buffer) loop
+                                
+                            # Check again if we need to break out of the main text chunk loop
+                            if not player_process or player_process.returncode is not None:
+                                 break # Exit async for text_chunk loop
+
+                # --- Process remaining text/sentences after stream ends ---
+                if chunk_buffer.strip():
+                    final_sentences = segmenter.segment(chunk_buffer)
+                    sentence_buffer.extend(final_sentences)
+                    chunk_buffer = ""
+
+                while sentence_buffer:
+                    batch_count = min(len(sentence_buffer), sentence_batch_size)
+                    sentences_to_process = [sentence_buffer.popleft() for _ in range(batch_count)]
+                    text_batch = " ".join(sentences_to_process).strip()
+
+                    if text_batch and player_process and player_process.returncode is None: # Ensure batch and player are valid
+                        # Generate audio for the final batch if enabled
+                        if generate_audio and tts_provider:
+                             try:
+                                async for audio_chunk in tts_provider.generate_audio_streaming(
+                                    text=text_batch,
+                                    voice_id=story_request.voice_id
+                                ):
+                                    if audio_chunk:
+                                        # Pipe final audio chunk to player
+                                        if player_process and player_process.returncode is None and player_process.stdin and not player_process.stdin.is_closing():
+                                            try:
+                                                logger.debug(f"Writing final {len(audio_chunk)} bytes to player")
+                                                player_process.stdin.write(audio_chunk)
+                                                await player_process.stdin.drain()
+                                                full_audio_data += audio_chunk
+                                            except ConnectionResetError:
+                                                logger.warning("Player process stdin connection lost during final write.")
+                                                break
+                                            except Exception as write_err:
+                                                logger.error(f"Error writing final batch to player stdin: {write_err}")
+                                                break
+                                        else:
+                                            logger.warning("Player stdin not available for final batch.")
+                                            break # Exit audio loop
+                             except Exception as audio_err:
+                                logger.error(f"Error generating final streaming audio batch: {str(audio_err)}")
+                    
+                    # Break loop if player died
+                    if not player_process or player_process.returncode is not None:
+                        break
+            except Exception as text_err:
+                logger.error(f"Error generating streaming text: {str(text_err)}")
+                yield f"data: {json.dumps({'error': f'Text generation error: {text_err}'})}\n\n"
+                # Don't return here, proceed to cleanup/save
+
+            logger.info("Story generation complete. Closing player input and saving.")
+
+            # Close player stdin stream gracefully
+            if player_process and player_process.returncode is None and player_process.stdin and not player_process.stdin.is_closing():
+                try:
+                    logger.info("Closing player stdin and waiting for buffered audio to finish playing...")
+                    player_process.stdin.close()
+                    await player_process.stdin.wait_closed() # Wait for buffer to flush
+                    
+                    # Give player more time to process remaining buffered audio
+                    logger.info("Giving player extra time to finish playback...")
+                    await asyncio.sleep(1.5)  # Increased from 0.5
+                    logger.info("Player stdin closed.")
+                except Exception as close_err:
+                     logger.warning(f"Error closing player stdin: {close_err}")
+
+
+            # --- Save Complete Story/Audio (Copied and adapted slightly) ---
+            try:
+                title = "Bedtime Story"
+                story_lines = full_text.strip().split("\n")
+                if story_lines and not story_lines[0].startswith("Once upon a time"):
+                    title = story_lines[0].strip()
+                    # Remove common title markers
+                    for marker in ["Title:", "# ", "## "]:
+                        if title.startswith(marker):
+                            title = title[len(marker):].strip()
+                
+                # Save audio file if data exists
+                audio_path = None
+                if full_audio_data:
+                    try:
+                        # ... (rest of filename generation logic - use .wav for raw PCM?) ...
+                        # Maybe change filename extension based on format?
+                        # For raw PCM from piper, .wav might be appropriate if header is added later
+                        # Or keep .mp3 and document that the *saved* file might need conversion
+                        # Let's keep .mp3 for now for consistency with previous logic
+                        safe_title = re.sub(r'[^\w\s-]', '', title).strip().replace(' ', '_')
+                        safe_universe = re.sub(r'[^\w\s-]', '', story_elements["universe"]).strip().replace(' ', '_')
+                        filename = f"{safe_universe[:20]}_{safe_title[:30]}_{uuid.uuid4().hex[:8]}.mp3" # Still save as mp3?
+
+                        local_file_path = os.path.join(AUDIO_DIR, filename)
+                        network_file_path = os.path.join(NETWORK_SHARE_PATH, filename)
+                        audio_path = f"audio/{filename}"
+
+                        # Save the *accumulated raw data*
+                        # NOTE: This saves raw PCM data to a file named .mp3.
+                        # This might be confusing. Consider saving as .raw or .pcm,
+                        # or adding a WAV header before saving.
+                        with open(local_file_path, 'wb') as f:
+                            f.write(full_audio_data)
+                        logger.info(f"Saved accumulated raw audio data to {local_file_path} (Note: raw PCM data)")
+
+                        # ... (rest of network share copy logic) ...
+                    except Exception as save_err:
+                        logger.error(f"Failed to save accumulated audio: {save_err}")
+                        audio_path = None
+
+                # Save story to database
+                story_data = {
+                    "title": title,
+                    "universe": story_elements["universe"],
+                    "setting": story_elements["setting"],
+                    "theme": story_elements["theme"],
+                    "story_length": story_elements["story_length"],
+                    "characters": [{"character_name": char} for char in story_elements["characters"]],
+                    "prompt": "",  # We don't have the prompt in streaming mode
+                    "story_text": full_text,
+                    "child_name": story_elements["child_name"],
+                    "audio_path": audio_path # Add the saved audio path
+                }
+                
+                db_story = crud.create_story(db, story_data)
+                
+                # Send completion event with story ID
+                complete_event = {
+                    "event": "complete",
+                    "data": {
+                        "story_id": db_story.id,
+                        "title": title
+                    }
+                }
+                yield f"data: {json.dumps(complete_event)}\n\n"
+                
+            except Exception as save_db_err:
+                 logger.error(f"Error saving story/audio metadata: {save_db_err}")
+                 yield f"data: {json.dumps({'error': f'DB Save error: {save_db_err}'})}\n\n"
+            # --- End Save ---
+
+
+            # Wait for player process to finish
+            if player_process and player_process.returncode is None:
+                try:
+                    logger.info("Waiting for player process to finish...")
+                    stdout, stderr = await asyncio.wait_for(
+                        player_process.communicate(), 
+                        timeout=6.0  # Increased timeout from 3.0
+                    )
+                    logger.info(f"Player process finished with exit code: {player_process.returncode}")
+                    if stdout: 
+                        logger.debug(f"Player stdout:\n{stdout.decode(errors='ignore')}")
+                    if stderr: 
+                        logger.warning(f"Player stderr:\n{stderr.decode(errors='ignore')}")
+                except asyncio.TimeoutError:
+                    logger.warning("Timeout waiting for player to finish, terminating...")
+                    try:
+                        player_process.terminate()
+                        await asyncio.sleep(0.2)
+                        if player_process.returncode is None:
+                            logger.warning("Player process not responding to termination, killing...")
+                            player_process.kill()
+                    except Exception as term_err:
+                        logger.error(f"Error terminating player: {term_err}")
+
+            yield f"data: {json.dumps({'status': 'Playback complete'})}\n\n"
+
+        except asyncio.CancelledError:
+            logger.info("Local playback streaming task cancelled.")
+            yield f"data: {json.dumps({'status': 'Cancelled'})}\n\n"
+            # Cleanup handled in finally
+            raise # Re-raise CancelledError
+
+        except Exception as e:
+            logger.error(f"Error during local playback stream generation: {str(e)}", exc_info=True)
+            try:
+                yield f"data: {json.dumps({'error': f'Streaming failed: {str(e)}'})}\n\n"
+            except Exception as yield_err:
+                 logger.error(f"Failed to yield final error message: {yield_err}")
+        finally:
+            # --- Cleanup Player Process ---
+            if player_process and player_process.returncode is None:
+                logger.warning("Player process still running in finally block, attempting termination.")
+                try:
+                    player_process.terminate()
+                    await player_process.wait() # Wait briefly for termination
+                    logger.info("Terminated player process.")
+                except ProcessLookupError:
+                    pass # Process already finished
+                except Exception as term_err:
+                    logger.error(f"Error terminating player process: {term_err}")
+            # Ensure stdin is closed even if termination failed
+            if player_process and player_process.stdin and not player_process.stdin.is_closing():
+                 try:
+                      player_process.stdin.close()
+                 except Exception:
+                      pass # Ignore errors closing already potentially dead process stdin
+            logger.info("Local playback stream finished or terminated.")
+            # --- End Cleanup ---
+
+
+    # Return the streaming response (useful for status/error messages)
+    try:
+        return StreamingResponse(generate_and_play_stream(), media_type="text/event-stream")
+    except Exception as e:
+        logger.error(f"Failed to initiate local playback stream: {str(e)}", exc_info=True)
+        # Ensure player is cleaned up if stream init fails *before* generate_and_play_stream runs
+        if player_process and player_process.returncode is None:
+             try: player_process.terminate()
+             except Exception: pass
+        raise HTTPException(status_code=500, detail=f"Failed to start local playback stream: {str(e)}")

@@ -26,32 +26,44 @@ class PiperProvider(TTSProvider):
         Initialize the Piper provider
         
         Args:
-            voice_id: Optional voice ID to use (defaults to "en_US-lessac-medium")
+            voice_id: Optional voice ID to use (defaults to "en_GB-northern_english_male-medium")
         """
         # Set default voice ID if not provided
-        self.voice_id = voice_id or "en_US-lessac-medium"
+        self.voice_id = voice_id or "en_GB-northern_english_male-medium"
         
-        # Get Piper executable path from environment or use default
-        self.piper_path = os.path.expanduser(os.environ.get("PIPER_PATH", "~/piper/piper"))
-        logger.info(f"Using Piper executable at: {self.piper_path}")
+        # Determine Piper base directory (contains models, libs, etc.)
+        # Priority: PIPER_DIR env var, otherwise default to ~/piper
+        piper_base_dir_default = os.path.expanduser("~/piper")
+        # Store as instance variable
+        self.piper_base_dir = os.path.expanduser(os.environ.get("PIPER_DIR", piper_base_dir_default))
+        logger.info(f"Using Piper base directory: {self.piper_base_dir}")
+
+        # Determine Piper executable path
+        # Priority: PIPER_PATH env var, otherwise default to <piper_base_dir>/piper
+        piper_exe_path_default = os.path.join(self.piper_base_dir, "piper") # Use self.piper_base_dir
+        self.piper_path = os.path.expanduser(os.environ.get("PIPER_PATH", piper_exe_path_default))
+        logger.info(f"Using Piper executable path: {self.piper_path}")
         
-        # Check if the piper executable exists
-        if not os.path.exists(self.piper_path):
-            logger.warning(f"Piper executable not found at {self.piper_path}. Make sure it's installed properly.")
-            
-            # Try fallback to home dir
-            piper_in_home = os.path.expanduser("~/piper/piper")
-            if os.path.exists(piper_in_home):
-                logger.info(f"Found Piper executable in home directory: {piper_in_home}")
-                self.piper_path = piper_in_home
+        # Check if the determined piper executable exists and is a file
+        if not os.path.isfile(self.piper_path):
+            logger.warning(
+                f"Piper executable not found or is not a file at '{self.piper_path}'. "
+                f"Ensure it's installed correctly or set PIPER_PATH env var. "
+                f"Will attempt to run '{os.path.basename(self.piper_path)}' assuming it's in system PATH."
+            )
+            # Fallback to just the name, hoping it's in PATH
+            self.piper_path = os.path.basename(self.piper_path) 
+        else:
+             logger.info(f"Confirmed Piper executable exists at: {self.piper_path}")
         
-        # Allow specifying an exact path to the voice model file
+        # Allow specifying an exact path to the voice model file (overrides model search)
         self.voice_model_path = os.environ.get("PIPER_VOICE_MODEL_PATH")
         if self.voice_model_path:
             logger.info(f"Using specific voice model path from environment: {self.voice_model_path}")
         
-        # Get models directory from environment or use default
-        self.models_dir = os.environ.get("PIPER_MODELS_DIR", os.path.expanduser("~/piper"))
+        # Determine models directory path
+        # Priority: PIPER_MODELS_DIR env var, otherwise default to piper_base_dir
+        self.models_dir = os.environ.get("PIPER_MODELS_DIR", self.piper_base_dir) # Use self.piper_base_dir
         
         # Log the models directory path
         logger.info(f"Piper models directory set to: {self.models_dir}")
@@ -71,6 +83,14 @@ class PiperProvider(TTSProvider):
             logger.warning(f"Network share path is not available: {e}")
         
         logger.info(f"Initialized Piper Provider with default voice {self.voice_id}")
+
+        # Log final calculated paths after __init__
+        logger.info(f"PiperProvider initialized with:")
+        logger.info(f"  Base Dir: {self.piper_base_dir}")
+        logger.info(f"  Executable Path: {self.piper_path}")
+        logger.info(f"  Models Dir: {self.models_dir}")
+        logger.info(f"  Voice Model Path Env: {self.voice_model_path}")
+        logger.info(f" LD_LIBRARY_PATH: {os.environ.get('LD_LIBRARY_PATH')}")
 
     def _create_friendly_filename(self, universe: str, title: str) -> str:
         """Create a friendly filename from universe and title"""
@@ -195,29 +215,38 @@ class PiperProvider(TTSProvider):
                     json_data["speaker_id"] = speaker_id
                 
                 json_line = json.dumps(json_data) + "\n"
+                print(f"json_line: {json_line}")
                 
                 # Run Piper command with JSON input
+                # Ensure piper_path is absolute
+                absolute_piper_path = os.path.abspath(self.piper_path)
+                absolute_model_path = os.path.abspath(model_path)
                 cmd = [
-                    self.piper_path,
-                    "--model", model_path,
+                    absolute_piper_path, # Use absolute path
+                    "--model", absolute_model_path, # Use absolute path
                     "--json-input"
                 ]
                 
                 # Log the command being executed
                 logger.info(f"Executing piper command: {' '.join(cmd)}")
                 
-                # Log environment variables
-                logger.info(f"LD_LIBRARY_PATH: {os.environ.get('LD_LIBRARY_PATH', 'not set')}")
-                
-                # Execute Piper with JSON input directly to stdin
+                                # Log the LD_LIBRARY_PATH from the environment that will be inherited
+                piper_lib_dir = os.path.dirname(os.path.abspath(self.piper_path))
+                if os.path.isdir(self.piper_base_dir) and self.piper_base_dir != piper_lib_dir:
+                    piper_lib_dir = self.piper_base_dir
+
+                current_env = os.environ.copy()
+                # This line modifies LD_LIBRARY_PATH based on the calculation above
+                current_env['LD_LIBRARY_PATH'] = f"{piper_lib_dir}:{current_env.get('LD_LIBRARY_PATH', '')}".strip(':')
+
                 result = subprocess.run(
                     cmd,
                     input=json_line,
                     capture_output=True,
                     text=True,
-                    check=True
+                    check=True,
+                    env=current_env # Passes the modified environment
                 )
-                
                 logger.info(f"Generated audio file at {local_file_path}")
                 
                 # Save to network share if available
@@ -330,33 +359,47 @@ class PiperProvider(TTSProvider):
             'repository': 'https://github.com/rhasspy/piper'
         }
 
-    async def generate_audio_streaming(self, text: str, 
+    async def generate_audio_streaming(self, text: str,  # type: ignore
                                       voice_id: Optional[str] = None, 
                                       story_info: Optional[Dict[str, Any]] = None) -> AsyncGenerator[bytes, None]:
         """
-        Generate audio from text in a streaming fashion
-        
+        Generate raw audio data from text in a streaming fashion.
+        Outputs raw PCM audio suitable for piping to a player like aplay.
+
         Args:
-            text: The text to convert to speech
-            voice_id: Optional voice ID to use
-            story_info: Optional dictionary containing universe and title
-            
+            text: The text to convert to speech.
+            voice_id: Optional voice ID to use.
+            story_info: Optional dictionary containing universe and title (used for speaker_id).
+
         Returns:
-            Async generator yielding chunks of audio data as they're generated
+            Async generator yielding chunks of raw PCM audio data.
         """
         import asyncio
-        import io
-        import wave
         
+        process = None # Define process here to ensure it's accessible in finally
         try:
             # Use provided voice ID or default
             selected_voice_id = voice_id or self.voice_id
             
-            # Get full voice ID if it's just the basic name
+            # Handle potential multi-speaker format like "en_US-lessac-medium@2"
+            speaker_id = None
+            if '@' in selected_voice_id:
+                selected_voice_id, speaker_id_str = selected_voice_id.split('@', 1)
+                try:
+                    speaker_id = int(speaker_id_str)
+                    logger.info(f"Using multi-speaker voice: {selected_voice_id} with speaker ID: {speaker_id}")
+                except ValueError:
+                    logger.warning(f"Invalid speaker ID format in voice_id: {voice_id}. Ignoring speaker ID.")
+                    speaker_id = None # Reset if format is wrong
+            # Extract the speaker ID from story_info if provided (fallback)
+            elif story_info and 'speaker_id' in story_info:
+                speaker_id = story_info.get('speaker_id')
+            
+            # Append .onnx if needed (after splitting speaker ID)
             if not selected_voice_id.endswith('.onnx'):
                 selected_voice_id = f"{selected_voice_id}.onnx"
-            
-            # Determine model path using same logic as in generate_audio
+
+            # Determine model path
             model_path = None
             
             # Use the specific model path from environment if available
@@ -381,71 +424,101 @@ class PiperProvider(TTSProvider):
                     if os.path.exists(location):
                         model_path = location
                         break
-            
+                        
             if not model_path:
                 logger.error(f"Voice model not found for streaming: {selected_voice_id}")
-                raise FileNotFoundError(f"Voice model not found: {selected_voice_id}")
-            
-            # Extract the speaker ID from story_info if provided
-            speaker_id = None
-            if story_info and 'speaker_id' in story_info:
-                speaker_id = story_info.get('speaker_id')
-            
-            # Use a temporary file for output
-            temp_output_file = os.path.join(self.output_dir, f"temp_stream_{uuid.uuid4()}.wav")
-            
-            # Create a JSON input line for Piper
-            json_data = {"text": text, "output_file": temp_output_file}
-            if speaker_id is not None:
-                json_data["speaker_id"] = speaker_id
-            
-            json_line = json.dumps(json_data) + "\n"
-            
-            # Run Piper command with JSON input
+                # Yield nothing if model not found to avoid breaking consumer entirely
+                return
+                # raise FileNotFoundError(f"Voice model not found: {selected_voice_id}") # Alternative: raise error
+
+            # Prepare Piper command for raw streaming output
             cmd = [
                 self.piper_path,
                 "--model", model_path,
-                "--json-input"
+                "--output-raw" # Output raw audio to stdout
             ]
             
-            # Log the command
+            # Add speaker ID if applicable
+            if speaker_id is not None:
+                cmd.extend(["--speaker", str(speaker_id)])
+
+            # Set up environment variables (similar to generate_audio)
+            piper_lib_dir = os.path.dirname(os.path.abspath(self.piper_path))
+            if os.path.isdir(self.piper_base_dir) and self.piper_base_dir != piper_lib_dir:
+                piper_lib_dir = self.piper_base_dir
+                
+            current_env = os.environ.copy()
+            current_env['LD_LIBRARY_PATH'] = f"{piper_lib_dir}:{current_env.get('LD_LIBRARY_PATH', '')}".strip(':')
+
             logger.info(f"Executing piper streaming command: {' '.join(cmd)}")
-            
-            # Execute Piper to generate the audio file
+
+            # Execute Piper, reading text from stdin and writing raw audio to stdout
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.PIPE,
+                env=current_env # Pass the environment variables
             )
-            
-            # Send the JSON data to the process
-            stdout, stderr = await process.communicate(json_line.encode())
-            
+
+            # Write text to Piper's stdin and close it
+            if process.stdin:
+                # Piper expects specific encoding, often UTF-8
+                process.stdin.write(text.encode('utf-8'))
+                await process.stdin.drain()
+                process.stdin.close()
+
+            # Read raw audio chunks from Piper's stdout
+            chunk_size = 4096 # Adjust chunk size as needed
+            while process.stdout and not process.stdout.at_eof():
+                chunk = await process.stdout.read(chunk_size)
+                if not chunk:
+                    break # End of stream
+                yield chunk
+                # No artificial sleep needed here
+
+            # Wait for the process to finish and check for errors
+            await process.wait()
+
             if process.returncode != 0:
-                logger.error(f"Piper command failed: {stderr.decode()}")
-                return
-            
-            # Read the audio file and yield chunks
-            if os.path.exists(temp_output_file):
+                stderr_output = await process.stderr.read() if process.stderr else b''
+                logger.error(f"Piper command failed with exit code {process.returncode}: {stderr_output.decode(errors='ignore')}")
+                # Option 1: Just log the error but don't break the stream
+                # Option 2: Raise - commented out for now
+                # raise RuntimeError(f"Piper failed: {stderr_output.decode(errors='ignore')}")
+
+        except asyncio.CancelledError:
+            logger.info("Piper streaming task cancelled.")
+            # Ensure process is terminated if cancelled mid-stream
+            if process and process.returncode is None:
                 try:
-                    with open(temp_output_file, 'rb') as f:
-                        # Yield file contents in chunks for streaming
-                        chunk_size = 4096  # 4KB chunks
-                        while chunk := f.read(chunk_size):
-                            yield chunk
-                            # Small delay to simulate streaming
-                            await asyncio.sleep(0.01)
-                finally:
-                    # Clean up the temporary file
-                    try:
-                        os.remove(temp_output_file)
-                    except Exception as e:
-                        logger.warning(f"Failed to remove temporary file: {e}")
-            else:
-                logger.error(f"Temporary audio file not created: {temp_output_file}")
-                
+                    process.terminate()
+                    await process.wait()
+                    logger.info("Terminated Piper process due to cancellation.")
+                except ProcessLookupError:
+                    pass # Process already finished
+                except Exception as term_err:
+                    logger.warning(f"Error terminating Piper process on cancellation: {term_err}")
+            raise # Re-raise CancelledError
+            
+        except FileNotFoundError as e:
+            logger.error(f"Piper executable or model not found: {e}")
+            # Yield nothing or raise specific error
+            return
+            
         except Exception as e:
-            logger.error(f"Error in streaming audio generation with Piper: {str(e)}")
-            # Yield an empty chunk to prevent breaking the stream
-            yield b"" 
+            logger.error(f"Error in streaming audio generation with Piper: {str(e)}", exc_info=True)
+            # Yield an empty chunk or raise to signal error to the consumer
+            yield b""
+            
+        finally:
+            # Ensure process is cleaned up if it was started and hasn't finished
+            if process and process.returncode is None:
+                try:
+                    logger.warning("Piper process still running in finally block, terminating.")
+                    process.terminate()
+                    await process.wait()
+                except ProcessLookupError:
+                    pass # Process already finished
+                except Exception as term_err:
+                    logger.warning(f"Error terminating Piper process in finally block: {term_err}") 

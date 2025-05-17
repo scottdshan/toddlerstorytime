@@ -1,5 +1,7 @@
 import openai
+from openai import AsyncOpenAI
 from typing import Dict, Any, Optional, AsyncGenerator
+# Removed: import re
 
 from app.config import OPENAI_API_KEY
 from app.llm.base import LLMProvider
@@ -29,11 +31,13 @@ class OpenAIProvider(LLMProvider):
         self.api_key = api_key or OPENAI_API_KEY
         self.api_base = api_base
         
-        # Configure OpenAI client
+        # Configure OpenAI clients (Sync and Async)
         if self.api_base is not None:
             self.client = openai.OpenAI(api_key=self.api_key, base_url=self.api_base)
+            self.async_client = AsyncOpenAI(api_key=self.api_key, base_url=self.api_base)
         else:
             self.client = openai.OpenAI(api_key=self.api_key)
+            self.async_client = AsyncOpenAI(api_key=self.api_key)
     
     def generate_story(self, story_elements: Dict[str, Any]) -> Dict[str, str]:
         """
@@ -72,6 +76,7 @@ class OpenAIProvider(LLMProvider):
     async def generate_story_streaming(self, story_elements: Dict[str, Any]) -> AsyncGenerator[str, None]: # type: ignore
         """
         Generate a story based on provided elements using OpenAI with streaming
+        (Yields raw chunks using async client)
         
         Args:
             story_elements: Dictionary containing story elements
@@ -79,12 +84,11 @@ class OpenAIProvider(LLMProvider):
         Returns:
             Async generator that yields chunks of the story as they are generated
         """
-        # Create prompt using the base class method
         prompt = self.create_story_prompt(story_elements)
         
         try:
-            # Call OpenAI API with streaming
-            stream = self.client.chat.completions.create(
+            # Use the ASYNC client and AWAIT the call
+            stream = await self.async_client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": "You are a skilled children's storyteller who creates engaging, "
@@ -96,12 +100,11 @@ class OpenAIProvider(LLMProvider):
                 stream=True
             )
             
-            # Stream the response chunks
-            for chunk in stream:
-                if chunk.choices and chunk.choices[0].delta.content:
+            # Use ASYNC FOR to iterate the stream
+            async for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
         
         except Exception as e:
             logger.error(f"Error in streaming story generation: {str(e)}")
-            # Don't yield error message directly as it causes frontend issues
             # The error will be handled by the endpoint's try-except block

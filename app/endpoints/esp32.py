@@ -11,6 +11,7 @@ from fastapi import Body
 import logging
 from typing import Dict, Any, Optional
 from pydantic import BaseModel
+import asyncio
 
 from app.serial.esp32 import get_esp32_manager
 from app.serial.monitor import start_esp32_monitor
@@ -74,10 +75,14 @@ async def connect_esp32(port: Optional[str] = Body(None, embed=True)):
 
 @router.post("/disconnect")
 async def disconnect_esp32():
-    """Disconnect from the ESP32 device."""
+    """Disconnect from the ESP32 device and stop monitoring task."""
     manager = get_esp32_manager()
+    # Cancel monitor task if running
+    if manager.monitor_task and not manager.monitor_task.done():
+        manager.monitor_task.cancel()
+        await asyncio.sleep(0)  # allow cancellation to propagate
+        manager.monitor_task = None
     manager.disconnect()
-    
     return {
         "connected": False,
         "message": "Disconnected from ESP32"
@@ -87,25 +92,17 @@ async def disconnect_esp32():
 async def start_monitoring(background_tasks: BackgroundTasks):
     """
     Start monitoring the ESP32 for character selections in the background.
-    
-    This endpoint returns immediately but starts a background task that
-    continues to monitor the ESP32 until the application is stopped or
-    the disconnect endpoint is called.
     """
     manager = get_esp32_manager()
-    
-    # Ensure the ESP32 is connected
-    if not manager.serial_conn or not manager.serial_conn.is_open:
-        if not manager.connect():
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to connect to ESP32. Check the port and device connection."
-            )
-    
-    # Start monitoring in the background
-    background_tasks.add_task(start_esp32_monitor)
-    
-    return {
-        "status": "monitoring_started",
-        "message": "ESP32 monitoring started in the background"
-    } 
+
+    # Ensure connected
+    if not manager.is_connected and not manager.connect():
+        raise HTTPException(status_code=500, detail="Failed to connect to ESP32. Check the port and device connection.")
+
+    # Prevent duplicate monitoring tasks
+    if manager.monitor_task and not manager.monitor_task.done():
+        return {"status": "already_monitoring"}
+
+    # Create monitoring task
+    manager.monitor_task = asyncio.create_task(start_esp32_monitor())
+    return {"status": "monitoring_started", "message": "ESP32 monitoring started in background"} 
