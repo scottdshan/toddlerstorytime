@@ -163,3 +163,28 @@ async def chat(req: _ChatReq):
     resp = _completion_chunk(full, finish="stop")
     resp["object"] = "chat.completion"
     return JSONResponse(resp)
+
+if __name__ == "__main__":
+    import uvicorn
+    # The script_args (from argparse) are already parsed at this point.
+    # We can use them to decide how to run or configure uvicorn if needed,
+    # but for host and port, we'll use fixed values or Uvicorn's defaults here.
+    # Uvicorn's own command-line args for host/port would not be parsed here
+    # unless we re-parsed sys.argv or passed script_args._ (remainder) to it.
+
+    # For model_key and measure, our script's argparse has already handled them
+    # and they affect the global MODEL_KEY and behavior within the app.
+
+    print(f"Starting Uvicorn. Performance measurement is {'ENABLED' if script_args.measure else 'DISABLED'}.")
+    if script_args.model_key:
+        print(f"Uvicorn will run with model: {MODEL_KEY}")
+    else:
+        print(f"Uvicorn will run with default model: {MODEL_KEY}")
+
+    uvicorn.run(
+        "rkllm.openai_compatible:app", # Uvicorn needs the app string
+        host="0.0.0.0",
+        port=8000,
+        log_level="info",
+        reload=False # Set to True if you want auto-reload during development, but be careful with resource cleanup
+    )
