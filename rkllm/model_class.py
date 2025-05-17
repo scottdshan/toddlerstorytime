@@ -107,7 +107,7 @@ class RKLLMLoaderClass:
             self.rkllm_param.top_p = self.base_config["top_p"]
             # self.rkllm_param.min_p = 0.1
             self.rkllm_param.extend_param.enabled_cpus_num = 3
-            self.rkllm_param.extend_param.enabled_cpus_mask = 0x7
+            self.rkllm_param.extend_param.enabled_cpus_mask = 0x70
             self.rkllm_param.temperature = self.base_config["temperature"]
             self.rkllm_param.repeat_penalty = self.base_config["repeat_penalty"]
             self.rkllm_param.frequency_penalty = self.base_config["frequency_penalty"]
