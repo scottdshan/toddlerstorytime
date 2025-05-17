@@ -106,6 +106,8 @@ model_configs = {
             "top_k": 20,
             "top_p": 0.95,
             "temperature": 0.6,
+            "repeat_penalty": 1.00,
+            "frequency_penalty": 0.2,
             "system_prompt": "You are Qwen, created by Alibaba Cloud. You are a helpful assistant."
         },
         "models": {
