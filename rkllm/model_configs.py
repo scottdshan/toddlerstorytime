@@ -98,6 +98,22 @@ model_configs = {
             "Qwen2.5-Coder-1.5B-Instruct-w8a8-hybrid": {"filename": "Qwen2.5-Coder-1.5B-Instruct-rk3588-w8a8-opt-0-hybrid-ratio-1.0.rkllm"}
         },
     },
+    "Qwen-3-Instruct": {
+        "base_config": {
+            "st_model_id": "Qwen/Qwen3-4B-Instruct",
+            "max_context_len": 4096,
+            "max_new_tokens": 8192,
+            "top_k": 5,
+            "top_p": 0.8,
+            "temperature": 0.2,
+            "repeat_penalty": 1.00,
+            "frequency_penalty": 0.2,
+            "system_prompt": "You are Qwen, created by Alibaba Cloud. You are a helpful assistant."
+        },
+        "models": {
+            "Qwen3-1.7B-Instruct": {"filename": "Qwen3-1.7B-rk3588-w8a8-opt-1-hybrid-ratio-1.0.rkllm"},
+        },
+    },
     "Marco-O1": {
         "base_config": {
             "st_model_id": "AIDC-AI/Marco-o1",
