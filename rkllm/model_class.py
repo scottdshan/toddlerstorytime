@@ -6,7 +6,7 @@ import time
 import sys
 import os
 
-MODEL_PATH = "./models"
+MODEL_PATH = "./rkllm/models"
 
 # Create a dict of various model configs, and then check the ./models directory if any exist
 # This will become the content of the model selector's drop down menu
