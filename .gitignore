@@ -172,6 +172,8 @@ cython_debug/
 
 /.vscode/*
 
+*.rkllm
+
 logs.txt
 *.db
 
