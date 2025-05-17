@@ -183,7 +183,7 @@ class RKLLMLoaderClass:
             tokenizer.save_pretrained(TOKENIZER_PATH)
         else:
             tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_PATH, trust_remote_code=True)
-        prompt = tokenizer.apply_chat_template(prompt, tokenize=True, add_generation_prompt=True)
+        prompt = tokenizer.apply_chat_template(prompt, tokenize=True, add_generation_prompt=True, enable_thinking=True)
         # response = {"role": "assistant", "content": "Loading..."}
         response = {"role": "assistant", "content": ""}
         history.append(response)

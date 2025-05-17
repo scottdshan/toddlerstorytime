@@ -103,11 +103,9 @@ model_configs = {
             "st_model_id": "Qwen/Qwen3-14B",
             "max_context_len": 4096,
             "max_new_tokens": 8192,
-            "top_k": 5,
-            "top_p": 0.8,
-            "temperature": 0.2,
-            "repeat_penalty": 1.00,
-            "frequency_penalty": 0.2,
+            "top_k": 20,
+            "top_p": 0.95,
+            "temperature": 0.6,
             "system_prompt": "You are Qwen, created by Alibaba Cloud. You are a helpful assistant."
         },
         "models": {
