@@ -10,19 +10,13 @@ import wave
 
 from app.tts.base import TTSProvider
 from app.config import AUDIO_DIR
-
-# Try importing kokoro-onnx
-try:
-    from kokoro_onnx import Kokoro
-except ImportError:
-    Kokoro = None # Handle missing dependency gracefully
-    logging.error("kokoro-onnx library not found. Please install it: pip install kokoro-onnx")
+from kokoro_onnx import Kokoro
 
 logger = logging.getLogger(__name__)
 
 # Default paths for model and voice files
 DEFAULT_MODEL_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "models", "kokoro"))
-DEFAULT_KOKORO_MODEL_PATH = os.path.join(DEFAULT_MODEL_DIR, "kokoro-v1.0.onnx")
+DEFAULT_KOKORO_MODEL_PATH = os.path.join(DEFAULT_MODEL_DIR, "kokoro-v1.0_uint8fp16.onnx")
 DEFAULT_KOKORO_VOICES_PATH = os.path.join(DEFAULT_MODEL_DIR, "voices-v1.0.bin")
 
 class KokorosProvider(TTSProvider):

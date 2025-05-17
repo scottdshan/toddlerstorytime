@@ -1,0 +1,8 @@
+gradio
+gradio_client
+huggingface-hub
+Jinja2
+numpy==2.1.3
+transformers==4.46.2
+trimesh==4.5.2
+sentencepiece==0.2.0
