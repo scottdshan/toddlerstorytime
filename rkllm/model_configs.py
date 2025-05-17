@@ -100,7 +100,7 @@ model_configs = {
     },
     "Qwen-3-Instruct": {
         "base_config": {
-            "st_model_id": "Qwen/Qwen3-4B-Instruct",
+            "st_model_id": "Qwen/Qwen3-14B",
             "max_context_len": 4096,
             "max_new_tokens": 8192,
             "top_k": 5,
@@ -111,7 +111,7 @@ model_configs = {
             "system_prompt": "You are Qwen, created by Alibaba Cloud. You are a helpful assistant."
         },
         "models": {
-            "Qwen3-1.7B-Instruct": {"filename": "Qwen3-1.7B-rk3588-w8a8-opt-1-hybrid-ratio-1.0.rkllm"},
+            "Qwen3-1.7B": {"filename": "Qwen3-1.7B-rk3588-w8a8-opt-1-hybrid-ratio-1.0.rkllm"},
         },
     },
     "Marco-O1": {
