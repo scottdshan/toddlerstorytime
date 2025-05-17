@@ -85,6 +85,7 @@ try:
     MODELS = MODELS_LOCAL
     MODEL_KEY = CHOSEN_MODEL_KEY_LOCAL
     
+    assert MODEL_KEY is not None # Ensure MODEL_KEY is set if we proceed
     # Initialize LLM, also expecting CWD to be SCRIPT_DIR
     LLM = RKLLMLoaderClass(model=MODEL_KEY)
     print(f"Successfully initialized model: {MODEL_KEY}")
@@ -130,12 +131,16 @@ async def lifespan(app: FastAPI):
     # Startup logic (if any) would go here
     yield
     # Shutdown logic
-    LLM.release()
+    if LLM is not None: # Check if LLM was initialized before trying to release
+        LLM.release()
 
 app = FastAPI(title="RKLLM-OpenAI bridge", lifespan=lifespan)
 
 @app.post("/v1/chat/completions")
 async def chat(req: _ChatReq):
+    if LLM is None: # Check if LLM is initialized
+        raise HTTPException(status_code=503, detail="LLM not initialized or model loading failed.")
+
     # single-turn; we only look at the last user message
     if not req.messages:
         raise HTTPException(400, "messages list empty")
