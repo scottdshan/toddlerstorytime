@@ -3,14 +3,11 @@
 openai_compat.py – minimal OpenAI-style /v1/chat/completions endpoint
 backed by a single RKLLM model.
 
-Start with:   uvicorn openai_compat:app --host 0.0.0.0 --port 8000
-Then aim your OpenAI SDK at http://localhost:8000
+Start with:   python rkllm/openai_compatible.py [--measure] [--host <ip>] [--port <num>]
+Then aim your OpenAI SDK at http://<host>:<port>/v1
 """
 
-import time, uuid, itertools, asyncio, argparse, json, sys
-import pathlib # ADDED: For path manipulation
-import os      # ADDED: For chdir
-
+import time, uuid, itertools, asyncio, json, os, argparse
 from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -18,83 +15,34 @@ from pydantic import BaseModel
 from model_class import RKLLMLoaderClass, available_models
 from contextlib import asynccontextmanager
 
-# ADDED: Determine script directory and expected models path early for clarity
-SCRIPT_DIR = pathlib.Path(__file__).parent.resolve()
-EXPECTED_MODELS_PATH_ABS = SCRIPT_DIR / "models"
-
-# Argument parsing
-parser = argparse.ArgumentParser(
-    description="OpenAI-compatible server for RKLLM models."
-)
-parser.add_argument(
-    "--measure",
-    action="store_true",
-    help="Enable performance measurement (timestamps and tokens/sec)."
-)
-parser.add_argument(
-    "--model_key",
-    type=str,
-    default=None,
-    help="Specify the model key to use. Lists available models if not specified or invalid."
-)
-script_args, _ = parser.parse_known_args()
+# Global flag for performance measurement
+MEASURE_PERFORMANCE = False
 
 # ---------- RKLLM bootstrap ----------
-# Module-level variables that will be assigned after loading.
-MODELS: Dict[str, Any] = {}
-MODEL_KEY: Optional[str] = None
-LLM: Optional[RKLLMLoaderClass] = None
-
-original_cwd = pathlib.Path.cwd()
-
-# Temporarily change CWD to SCRIPT_DIR for model loading operations
-# as model_class.py likely expects to find "./models" relative to its own location (SCRIPT_DIR).
-if original_cwd != SCRIPT_DIR:
-    # print(f"[DEBUG] Changing CWD from {original_cwd} to {SCRIPT_DIR} for model loading.")
-    os.chdir(SCRIPT_DIR)
+# Manage CWD for model loading to ensure paths are resolved correctly
+# relative to the script's directory (rkllm/), especially if model_class.py uses CWD-relative paths.
+_orig_cwd = os.getcwd()
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_models_expected_path = os.path.join(_script_dir, "models")
 
 try:
-    MODELS_LOCAL = available_models() # This call now happens with CWD as SCRIPT_DIR
-
-    if not MODELS_LOCAL:
-        # This error message is more specific about where models were expected.
-        print(f"Error: No .rkllm files found in the expected directory: {EXPECTED_MODELS_PATH_ABS}", file=sys.stderr)
-        print("Please ensure your model files (e.g., *.rkllm) are located there.", file=sys.stderr)
-        sys.exit(1) # Exits while CWD might still be SCRIPT_DIR, which is fine for script termination.
-
-    # Model selection logic
-    CHOSEN_MODEL_KEY_LOCAL: Optional[str] = None
-    if script_args.model_key:
-        if script_args.model_key in MODELS_LOCAL:
-            CHOSEN_MODEL_KEY_LOCAL = script_args.model_key
-            print(f"Using specified model: {CHOSEN_MODEL_KEY_LOCAL}")
-        else:
-            print(f"Error: Model key '{script_args.model_key}' not found.", file=sys.stderr)
-            print(f"Models were expected in: {EXPECTED_MODELS_PATH_ABS}", file=sys.stderr)
-            print("Available models are:", file=sys.stderr)
-            for key_in_models in MODELS_LOCAL: print(f"  - {key_in_models}", file=sys.stderr)
-            sys.exit(1)
-    else:
-        CHOSEN_MODEL_KEY_LOCAL = next(iter(MODELS_LOCAL))
-        print(f"No model key specified. Defaulting to first available model: {CHOSEN_MODEL_KEY_LOCAL}")
-        if len(MODELS_LOCAL) > 1:
-            print("To use a different model, pass the --model_key argument. Available models are:")
-            for key_in_models in MODELS_LOCAL: print(f"  - {key_in_models}")
+    # Change CWD to script's directory if it's different,
+    # to help model_class.py find "./models" if it's CWD-sensitive.
+    if _orig_cwd != _script_dir:
+        os.chdir(_script_dir)
     
-    # Assign to module-level variables
-    MODELS = MODELS_LOCAL
-    MODEL_KEY = CHOSEN_MODEL_KEY_LOCAL
-    
-    assert MODEL_KEY is not None # Ensure MODEL_KEY is set if we proceed
-    # Initialize LLM, also expecting CWD to be SCRIPT_DIR
+    MODELS = available_models()
+    if not MODELS:
+        # Check if the 'models' subdirectory actually exists where expected (now relative to _script_dir)
+        if not os.path.isdir("models"): 
+             raise RuntimeError(f"The 'models' directory was not found at {_models_expected_path}. Please ensure it exists and contains .rkllm files.")
+        raise RuntimeError(f"No .rkllm files found in '{_models_expected_path}' – download one first.")
+    MODEL_KEY = next(iter(MODELS))
     LLM = RKLLMLoaderClass(model=MODEL_KEY)
-    print(f"Successfully initialized model: {MODEL_KEY}")
-
 finally:
-    # Always restore the original CWD
-    if original_cwd != SCRIPT_DIR:
-        # print(f"[DEBUG] Restoring CWD to {original_cwd}.")
-        os.chdir(original_cwd)
+    # Restore original CWD if it was changed
+    if os.getcwd() != _orig_cwd :
+        os.chdir(_orig_cwd)
 
 # ---------- Pydantic shapes mimicking OpenAI ----------
 class _ChatMessage(BaseModel):
@@ -131,100 +79,146 @@ async def lifespan(app: FastAPI):
     # Startup logic (if any) would go here
     yield
     # Shutdown logic
-    if LLM is not None: # Check if LLM was initialized before trying to release
-        LLM.release()
+    if MEASURE_PERFORMANCE:
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Application shutting down. Releasing LLM.")
+    LLM.release()
 
 app = FastAPI(title="RKLLM-OpenAI bridge", lifespan=lifespan)
 
 @app.post("/v1/chat/completions")
 async def chat(req: _ChatReq):
-    if LLM is None: # Check if LLM is initialized
-        raise HTTPException(status_code=503, detail="LLM not initialized or model loading failed.")
+    global MEASURE_PERFORMANCE # Allow writing to global if it were to be changed, ensure read from global
 
-    # single-turn; we only look at the last user message
+    request_received_time = 0.0
+    if MEASURE_PERFORMANCE:
+        request_received_time = time.perf_counter()
+        prompt_len = 0
+        if req.messages:
+            prompt_len = len(req.messages[-1].content)
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Request received. Model: {req.model}, Stream: {req.stream}, Prompt length: {prompt_len}")
+
     if not req.messages:
         raise HTTPException(400, "messages list empty")
     prompt = req.messages[-1].content
 
-    # generator from RKLLM
-    stream = LLM.get_RKLLM_output(prompt, [])          # no history
+    llm_call_start_time = time.perf_counter()
+    llm_output_stream = LLM.get_RKLLM_output(prompt, []) # no history
 
     if req.stream:
-        async def event_stream():
-            nonlocal stream # Ensure we are using the correct stream variable
-            _prev_text_stream = ""
-            _token_count_stream = 0
-            _start_time_stream = 0.0 # Initialize
+        async def event_stream_generator(initial_request_time: float, call_llm_time: float):
+            prev_content = ""
+            first_token_timestamp = 0.0
+            # Time right before starting to iterate the LLM's stream
+            actual_generation_start_time = time.perf_counter() 
 
-            if script_args.measure: # MODIFIED: Start timing and logging
-                _start_time_stream = time.perf_counter()
-                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Stream request started. Model: {MODEL_KEY}. Prompt: \"{prompt[:80]}...\"")
+            for piece in llm_output_stream:
+                current_content = piece.get("content", "") # Make robust if 'content' key missing
+                delta = current_content[len(prev_content):]
+                prev_content = current_content
 
-            for piece in stream:
-                text = piece["content"]
-                delta = text[len(_prev_text_stream):]
-                _prev_text_stream = text
-                if delta:
-                    if script_args.measure: # MODIFIED: Count tokens
-                        _token_count_stream += len(delta)  # Using char length as token count
+                if delta: # A content delta exists
+                    if MEASURE_PERFORMANCE and first_token_timestamp == 0.0:
+                        first_token_timestamp = time.perf_counter()
+                        time_to_first_token = first_token_timestamp - initial_request_time
+                        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Stream: Time to first content token: {time_to_first_token:.4f}s")
+                    
                     chunk = _completion_chunk(delta)
-                    yield f"data: {json.dumps(chunk)}\\n\\n" # MODIFIED: Use json.dumps for proper event stream data
-            
-            if script_args.measure: # MODIFIED: Finish timing and logging
-                end_time_stream = time.perf_counter()
-                duration_stream = end_time_stream - _start_time_stream
-                tokens_per_sec_stream = _token_count_stream / duration_stream if duration_stream > 0 else 0
-                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Stream request finished. Duration: {duration_stream:.4f}s. Tokens: {_token_count_stream}. Tokens/sec: {tokens_per_sec_stream:.2f}")
-            
-            yield "data: [DONE]\\n\\n" # Ensure [DONE] is sent
-        return StreamingResponse(event_stream(),
+                    yield f"data: {json.dumps(chunk)}\n\n"
+                # If there's no delta, but it's the first piece and potentially carries role info, 
+                # we could log "time to first piece" if desired, but current focus is on content tokens.
+
+            yield "data: [DONE]\n\n"
+
+            if MEASURE_PERFORMANCE:
+                stream_end_time = time.perf_counter()
+                # NOTE: Using simple word count. For accurate token counts, integrate model's tokenizer.
+                final_token_count = len(prev_content.split()) 
+                
+                overall_duration = stream_end_time - initial_request_time
+                # Duration from when we started iterating the LLM output to when we finished
+                generation_loop_duration = stream_end_time - actual_generation_start_time
+                # Duration including the call to LLM.get_RKLLM_output and iteration
+                llm_plus_generation_duration = stream_end_time - call_llm_time
+
+                overall_tps = final_token_count / overall_duration if overall_duration > 0 else 0
+                generation_loop_tps = final_token_count / generation_loop_duration if generation_loop_duration > 0 else 0
+                
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Stream: COMPLETED")
+                print(f"    Final generated tokens: {final_token_count} (approx. words)")
+                if first_token_timestamp > 0.0:
+                     print(f"    Time to first content token: {(first_token_timestamp - initial_request_time):.4f}s")
+                else:
+                     print(f"    Time to first content token: N/A (no content generated or measured)")
+                print(f"    Generation loop duration: {generation_loop_duration:.4f}s (TPS: {generation_loop_tps:.2f}) approx.")
+                print(f"    LLM call + Generation loop duration: {llm_plus_generation_duration:.4f}s")
+                print(f"    Overall request duration: {overall_duration:.4f}s (Overall TPS: {overall_tps:.2f}) approx.")
+
+        return StreamingResponse(event_stream_generator(request_received_time, llm_call_start_time),
                                  media_type="text/event-stream")
+    else: # Non-stream mode
+        _full_text = ""
+        # Time right before starting to iterate the LLM's stream (for non-streaming case)
+        actual_generation_start_time = time.perf_counter() 
+        for _piece in llm_output_stream:
+            # Assuming each piece is a dict with a "content" key holding cumulative text
+            if isinstance(_piece, dict) and "content" in _piece:
+                _full_text = _piece["content"]
+        full = _full_text
+        
+        generation_end_time = time.perf_counter() # Time after collecting full text
 
-    # non-stream mode: collect full text then return once
-    _start_time_full = 0.0 # Initialize
-    if script_args.measure: # MODIFIED: Start timing and logging
-        _start_time_full = time.perf_counter()
-        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Full request started. Model: {MODEL_KEY}. Prompt: \"{prompt[:80]}...\"")
-    
-    _full_text = ""
-    for _piece in stream:  # Iterate through the stream of pieces
-        # Assuming each piece is a dict with a "content" key holding cumulative text
-        if isinstance(_piece, dict) and "content" in _piece:
-            _full_text = _piece["content"]  # The last piece's content is the full text
-    full = _full_text
-    
-    if script_args.measure: # MODIFIED: Finish timing and logging
-        end_time_full = time.perf_counter()
-        duration_full = end_time_full - _start_time_full
-        _token_count_full = len(full) # Using char length as token count
-        tokens_per_sec_full = _token_count_full / duration_full if duration_full > 0 else 0
-        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Full request finished. Duration: {duration_full:.4f}s. Tokens: {_token_count_full}. Tokens/sec: {tokens_per_sec_full:.2f}")
+        if MEASURE_PERFORMANCE:
+            # NOTE: Using simple word count. For accurate token counts, integrate model's tokenizer.
+            final_token_count = len(full.split())
 
-    resp = _completion_chunk(full, finish="stop")
-    resp["object"] = "chat.completion"
-    return JSONResponse(resp)
+            overall_duration = generation_end_time - request_received_time
+            # Duration of iterating the LLM output
+            generation_loop_duration = generation_end_time - actual_generation_start_time
+            # Duration including the call to LLM.get_RKLLM_output and iteration
+            llm_plus_generation_duration = generation_end_time - llm_call_start_time
 
+            overall_tps = final_token_count / overall_duration if overall_duration > 0 else 0
+            generation_loop_tps = final_token_count / generation_loop_duration if generation_loop_duration > 0 else 0
+
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Non-Stream: COMPLETED")
+            print(f"    Final generated tokens: {final_token_count} (approx. words)")
+            print(f"    Generation loop duration: {generation_loop_duration:.4f}s (TPS: {generation_loop_tps:.2f}) approx.")
+            print(f"    LLM call + Generation loop duration: {llm_plus_generation_duration:.4f}s")
+            print(f"    Overall request duration: {overall_duration:.4f}s (Overall TPS: {overall_tps:.2f}) approx.")
+
+        resp = _completion_chunk(full, finish="stop")
+        resp["object"] = "chat.completion"
+        return JSONResponse(resp)
+
+# ---------- Main execution for direct run ----------
 if __name__ == "__main__":
-    import uvicorn
-    # The script_args (from argparse) are already parsed at this point.
-    # We can use them to decide how to run or configure uvicorn if needed,
-    # but for host and port, we'll use fixed values or Uvicorn's defaults here.
-    # Uvicorn's own command-line args for host/port would not be parsed here
-    # unless we re-parsed sys.argv or passed script_args._ (remainder) to it.
+    parser = argparse.ArgumentParser(
+        description="OpenAI compatible server for RKLLM, with optional performance measurement.",
+        formatter_class=argparse.RawTextHelpFormatter,
+        epilog="""Example:
+  python rkllm/openai_compatible.py --measure --port 8001
 
-    # For model_key and measure, our script's argparse has already handled them
-    # and they affect the global MODEL_KEY and behavior within the app.
-
-    print(f"Starting Uvicorn. Performance measurement is {'ENABLED' if script_args.measure else 'DISABLED'}.")
-    if script_args.model_key:
-        print(f"Uvicorn will run with model: {MODEL_KEY}")
-    else:
-        print(f"Uvicorn will run with default model: {MODEL_KEY}")
-
-    uvicorn.run(
-        "rkllm.openai_compatible:app", # Uvicorn needs the app string
-        host="0.0.0.0",
-        port=8000,
-        log_level="info",
-        reload=False # Set to True if you want auto-reload during development, but be careful with resource cleanup
+This will start the server on port 8001 with performance measurement enabled.
+The server expects model files to be in a 'models' subdirectory relative to this script (e.g., rkllm/models/).
+"""
     )
+    parser.add_argument("--host", type=str, default="0.0.0.0", help="Host to bind the server to (default: 0.0.0.0).")
+    parser.add_argument("--port", type=int, default=8000, help="Port to bind the server to (default: 8000).")
+    parser.add_argument("--measure", action="store_true", help="Enable performance measurement (timestamps and tokens/sec).")
+    args = parser.parse_args()
+
+    if args.measure:
+        MEASURE_PERFORMANCE = True # Set the global flag
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Performance measurement ENABLED.")
+    else:
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Performance measurement DISABLED (to enable, use --measure flag).")
+
+    try:
+        import uvicorn
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Starting server on http://{args.host}:{args.port}/v1")
+        uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+    except ImportError:
+        print("Error: uvicorn is not installed. Please install it with 'pip install uvicorn'")
+        print("You can run the server using: python rkllm/openai_compatible.py")
+    except Exception as e:
+        print(f"Failed to start server: {e}")
