@@ -98,7 +98,7 @@ model_configs = {
             "Qwen2.5-Coder-1.5B-Instruct-w8a8-hybrid": {"filename": "Qwen2.5-Coder-1.5B-Instruct-rk3588-w8a8-opt-0-hybrid-ratio-1.0.rkllm"}
         },
     },
-    "Qwen-3-Instruct": {
+    "Qwen-3": {
         "base_config": {
             "st_model_id": "Qwen/Qwen3-14B",
             "max_context_len": 4096,
@@ -111,7 +111,9 @@ model_configs = {
             "system_prompt": "You are Qwen, created by Alibaba Cloud. You are a helpful assistant."
         },
         "models": {
-            "Qwen3-1.7B": {"filename": "Qwen3-1.7B-rk3588-w8a8-opt-1-hybrid-ratio-1.0.rkllm"},
+            "Qwen3-0.6B": {"filename": "Qwen3-0.6B-rk3588-w8a8.rkllm"},
+            "Qwen3-1.7B": {"filename": "Qwen3-1.7B-rk3588-w8a8.rkllm"},
+            "Qwen3-4B": {"filename": "Qwen3-4B-rk3588-w8a8.rkllm"},
         },
     },
     "Marco-O1": {
@@ -197,7 +199,7 @@ model_configs = {
             "temperature": 0.7,
             "repeat_penalty": 1.2,
             "frequency_penalty": 0.8,
-            "system_prompt": "You are DeepSeek Chat, a helpful, respectful and honest AI assistant developed by DeepSeek. The knowledge cut-off date for your training data is up to May 2023. Always answer as helpfully as possible, while being safe. Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure that your responses are socially unbiased and positive in nature. If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don’t know the answer to a question, please don’t share false information." 
+            "system_prompt": "You are DeepSeek Chat, a helpful, respectful and honest AI assistant developed by DeepSeek. The knowledge cut-off date for your training data is up to May 2023. Always answer as helpfully as possible, while being safe. Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure that your responses are socially unbiased and positive in nature. If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don't know the answer to a question, please don't share false information." 
         },
         "models": {
             "deepseek-llm-7b": {"filename": "deepseek-llm-7b-chat-rk3588-w8a8_g256-opt-1-hybrid-ratio-0.5.rkllm"}
