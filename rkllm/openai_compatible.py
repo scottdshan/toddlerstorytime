@@ -8,6 +8,9 @@ Then aim your OpenAI SDK at http://localhost:8000
 """
 
 import time, uuid, itertools, asyncio, argparse, json, sys
+import pathlib # ADDED: For path manipulation
+import os      # ADDED: For chdir
+
 from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -15,7 +18,11 @@ from pydantic import BaseModel
 from model_class import RKLLMLoaderClass, available_models
 from contextlib import asynccontextmanager
 
-# NEW: Argument parsing
+# ADDED: Determine script directory and expected models path early for clarity
+SCRIPT_DIR = pathlib.Path(__file__).parent.resolve()
+EXPECTED_MODELS_PATH_ABS = SCRIPT_DIR / "models"
+
+# Argument parsing
 parser = argparse.ArgumentParser(
     description="OpenAI-compatible server for RKLLM models."
 )
@@ -33,32 +40,60 @@ parser.add_argument(
 script_args, _ = parser.parse_known_args()
 
 # ---------- RKLLM bootstrap ----------
-MODELS = available_models()
-if not MODELS:
-    print("Error: No .rkllm files found in ./models – download one first.", file=sys.stderr)
-    sys.exit(1)
+# Module-level variables that will be assigned after loading.
+MODELS: Dict[str, Any] = {}
+MODEL_KEY: Optional[str] = None
+LLM: Optional[RKLLMLoaderClass] = None
 
-# MODIFIED: Model selection logic
-if script_args.model_key:
-    if script_args.model_key in MODELS:
-        MODEL_KEY = script_args.model_key
-        print(f"Using specified model: {MODEL_KEY}")
+original_cwd = pathlib.Path.cwd()
+
+# Temporarily change CWD to SCRIPT_DIR for model loading operations
+# as model_class.py likely expects to find "./models" relative to its own location (SCRIPT_DIR).
+if original_cwd != SCRIPT_DIR:
+    # print(f"[DEBUG] Changing CWD from {original_cwd} to {SCRIPT_DIR} for model loading.")
+    os.chdir(SCRIPT_DIR)
+
+try:
+    MODELS_LOCAL = available_models() # This call now happens with CWD as SCRIPT_DIR
+
+    if not MODELS_LOCAL:
+        # This error message is more specific about where models were expected.
+        print(f"Error: No .rkllm files found in the expected directory: {EXPECTED_MODELS_PATH_ABS}", file=sys.stderr)
+        print("Please ensure your model files (e.g., *.rkllm) are located there.", file=sys.stderr)
+        sys.exit(1) # Exits while CWD might still be SCRIPT_DIR, which is fine for script termination.
+
+    # Model selection logic
+    CHOSEN_MODEL_KEY_LOCAL: Optional[str] = None
+    if script_args.model_key:
+        if script_args.model_key in MODELS_LOCAL:
+            CHOSEN_MODEL_KEY_LOCAL = script_args.model_key
+            print(f"Using specified model: {CHOSEN_MODEL_KEY_LOCAL}")
+        else:
+            print(f"Error: Model key '{script_args.model_key}' not found.", file=sys.stderr)
+            print(f"Models were expected in: {EXPECTED_MODELS_PATH_ABS}", file=sys.stderr)
+            print("Available models are:", file=sys.stderr)
+            for key_in_models in MODELS_LOCAL: print(f"  - {key_in_models}", file=sys.stderr)
+            sys.exit(1)
     else:
-        print(f"Error: Model key '{script_args.model_key}' not found.", file=sys.stderr)
-        print("Available models are:", file=sys.stderr)
-        for key in MODELS:
-            print(f"  - {key}", file=sys.stderr)
-        sys.exit(1)
-else:
-    MODEL_KEY = next(iter(MODELS)) # Default to the first model
-    print(f"No model key specified. Defaulting to first available model: {MODEL_KEY}")
-    if len(MODELS) > 1:
-        print("To use a different model, pass the --model_key argument.")
-        print("Available models are:")
-        for key in MODELS:
-            print(f"  - {key}")
+        CHOSEN_MODEL_KEY_LOCAL = next(iter(MODELS_LOCAL))
+        print(f"No model key specified. Defaulting to first available model: {CHOSEN_MODEL_KEY_LOCAL}")
+        if len(MODELS_LOCAL) > 1:
+            print("To use a different model, pass the --model_key argument. Available models are:")
+            for key_in_models in MODELS_LOCAL: print(f"  - {key_in_models}")
+    
+    # Assign to module-level variables
+    MODELS = MODELS_LOCAL
+    MODEL_KEY = CHOSEN_MODEL_KEY_LOCAL
+    
+    # Initialize LLM, also expecting CWD to be SCRIPT_DIR
+    LLM = RKLLMLoaderClass(model=MODEL_KEY)
+    print(f"Successfully initialized model: {MODEL_KEY}")
 
-LLM = RKLLMLoaderClass(model=MODEL_KEY)
+finally:
+    # Always restore the original CWD
+    if original_cwd != SCRIPT_DIR:
+        # print(f"[DEBUG] Restoring CWD to {original_cwd}.")
+        os.chdir(original_cwd)
 
 # ---------- Pydantic shapes mimicking OpenAI ----------
 class _ChatMessage(BaseModel):
